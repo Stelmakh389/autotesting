@@ -1,0 +1,85 @@
+<div class="modal fade" id="deleteConfirmationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Подтверждение удаления</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="lead" id="deleteConfirmationText"></p>
+                
+                <div class="alert alert-warning">
+                    <h5 class="alert-heading">Внимание!</h5>
+                    <p>Это действие нельзя будет отменить. Информация будет удалена безвозвратно.</p>
+                </div>
+                
+                <div id="additionalInfo"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Отмена
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                    <i class="fas fa-trash"></i> Подтвердить удаление
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    // Функция для подтверждения удаления
+    function confirmDelete(url, itemName, itemType, additionalInfo = '') {
+        const modal = document.getElementById('deleteConfirmationModal');
+        const confirmText = document.getElementById('deleteConfirmationText');
+        const additionalInfoBlock = document.getElementById('additionalInfo');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        
+        if (!modal || !confirmText || !additionalInfoBlock || !confirmBtn || !window.deleteModal) {
+            console.error('Необходимые элементы модального окна не найдены');
+            return;
+        }
+        
+        if (Array.isArray(itemName)) {
+            confirmText.textContent = `Вы действительно хотите удалить выбранные элементы (${itemName.length} шт.)?`;
+        } else if (itemName === 'all') {
+            confirmText.textContent = `Вы действительно хотите удалить все записи?`;
+        } else {
+            confirmText.textContent = `Вы действительно хотите удалить ${itemType} "${itemName}"?`;
+        }
+        
+        additionalInfoBlock.innerHTML = additionalInfo || '';
+        
+        confirmBtn.onclick = () => {
+            if (Array.isArray(itemName)) {
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        ids: itemName
+                    })
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            } else {
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            }
+            window.deleteModal.hide();
+        };
+        
+        window.deleteModal.show();
+    }
+</script>

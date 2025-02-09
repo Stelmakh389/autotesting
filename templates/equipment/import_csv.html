@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Импорт {{ equipment_type_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+   <div class="card">
+       <div class="card-header">
+           <h2>Импорт {{ equipment_type_name }}</h2>
+       </div>
+       <div class="card-body">
+           <form method="post" enctype="multipart/form-data">
+               {% csrf_token %}
+               
+               <div class="alert alert-warning">
+                   <h5><i class="fas fa-exclamation-triangle"></i> Внимание!</h5>
+                   <p>При импорте все существующие записи будут удалены и заменены данными из XLSX файла.</p>
+               </div>
+
+               <div class="mb-3">
+                   {{ form.csv_file.label_tag }}
+                   {{ form.csv_file }}
+                   {% if form.csv_file.errors %}
+                       <div class="alert alert-danger">
+                           {{ form.csv_file.errors }}
+                       </div>
+                   {% endif %}
+               </div>
+
+               <div class="alert alert-info">
+                   <h5>Инструкция по импорту:</h5>
+                   <p>1. Excel файл должен содержать следующие колонки:</p>
+                   <pre>{{ example_header }}</pre>
+                   <p>2. Файл должен быть в формате .xlsx</p>
+                   <p>3. Используйте первую строку для заголовков</p>
+               </div>
+
+               <div class="mt-3">
+                   <button type="submit" class="btn btn-primary">
+                       <i class="fas fa-file-import"></i> Импортировать
+                   </button>
+                   <a href="javascript:history.back()" class="btn btn-secondary">
+                       <i class="fas fa-times"></i> Отмена
+                   </a>
+               </div>
+           </form>
+       </div>
+   </div>
+</div>
+{% endblock %}

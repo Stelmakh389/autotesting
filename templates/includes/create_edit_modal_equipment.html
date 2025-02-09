@@ -1,0 +1,140 @@
+<div class="modal fade" id="equipmentFormModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Создать элемент оборудования</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="equipmentForm" method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    {% if form.errors %}
+                        <div class="alert alert-danger">
+                            <h5>Пожалуйста, исправьте следующие ошибки:</h5>
+                            {{ form.errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="row">
+                        <!-- Левая колонка -->
+                        <div class="col-md-6">
+                            {% for field in form %}
+                                {% if field.name in form.left_fields %}
+                                    <div class="mb-3">
+                                        {{ field.label_tag }}
+                                        {{ field }}
+                                        <div class="invalid-feedback"></div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Правая колонка -->
+                        <div class="col-md-6">
+                            {% for field in form %}
+                                {% if field.name in form.right_fields %}
+                                    <div class="mb-3">
+                                        {{ field.label_tag }}
+                                        {{ field }}
+                                        <div class="invalid-feedback"></div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveEquipment">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const modal = new bootstrap.Modal(document.getElementById('equipmentFormModal'));
+    const form = document.getElementById('equipmentForm');
+
+    // Открытие модального окна для создания
+    document.querySelector('.create_btn').addEventListener('click', function() {
+        document.getElementById('modalTitle').textContent = 'Создать элемент оборудования';
+        form.reset();
+        form.dataset.mode = 'create';
+        modal.show();
+    });
+
+    // Обработка редактирования
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.dataset.id;
+            console.log('Edit button clicked for item:', itemId);
+            
+            document.getElementById('modalTitle').textContent = 'Редактировать элемент';
+            form.dataset.mode = 'edit';
+            form.dataset.editUrl = `{% url 'equipment:equipment-update' '0' %}`.replace('0', itemId);
+            
+            fetch(`/equipment/${itemId}/update/`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Received data:', data);
+                if (data.status === 'success') {
+                    Object.keys(data.data).forEach(field => {
+                        const input = form.querySelector(`[name="${field}"]`);
+                        if (input) {
+                            input.value = data.data[field];
+                        }
+                    });
+                    modal.show();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+
+    // Обработка сохранения
+    document.getElementById('saveEquipment').addEventListener('click', function() {
+        const formData = new FormData(form);
+        const url = form.dataset.mode === 'create' 
+            ? '{% url "equipment:equipment-create" %}'
+            : form.dataset.editUrl;
+
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            }
+            throw new Error('Server response was not JSON');
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                modal.hide();
+                window.location.reload();
+            } else {
+                // Показ ошибок валидации
+                Object.keys(data.errors).forEach(field => {
+                    const input = document.getElementById(`id_${field}`);
+                    if (input) {
+                        input.classList.add('is-invalid');
+                        input.nextElementSibling.textContent = data.errors[field][0];
+                    }
+                });
+            }
+        });
+    });
+});
+</script>

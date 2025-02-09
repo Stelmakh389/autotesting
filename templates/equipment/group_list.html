@@ -1,0 +1,53 @@
+{% extends 'equipment/base_list.html' %}
+
+{% block title %}Группы оборудования{% endblock %}
+
+{% block table_header %}
+<th width="40">
+    <input type="checkbox" class="form-check-input" id="select-all">
+</th>
+<th>Название</th>
+<th>Описание</th>
+<th>Количество оборудования</th>
+<th>Создана</th>
+<th>Действия</th>
+{% endblock %}
+
+{% block table_body %}
+{% for group in object_list %}
+<tr>
+    <td>
+        <input type="checkbox" class="form-check-input item-checkbox" 
+               value="{{ group.id }}" data-id="{{ group.id }}">
+    </td>
+    <td>{{ group.name }}</td>
+    <td>{{ group.description|truncatechars:50 }}</td>
+    <td>{{ group.equipment.count }}</td>
+    <td>{{ group.created_at|date:"d.m.Y" }}</td>
+    <td>
+        <div class="btn-group">
+            <a href="{% url 'equipment:group_detail' group.id %}" 
+               class="btn btn-sm btn-info" title="Просмотр">
+               <i class="bi bi-eye"></i>
+            </a>
+            <a href="{% url 'equipment:group_update' group.id %}" 
+               class="btn btn-sm btn-warning" title="Редактировать">
+               <i class="bi bi-pencil"></i>
+            </a>
+            <button type="button" class="btn btn-sm btn-secondary copy-group" 
+                    data-id="{{ group.id }}" title="Копировать">
+                <i class="bi bi-files"></i>
+            </button>
+            <a href="{% url 'equipment:group_delete' group.id %}" 
+               class="btn btn-sm btn-danger" title="Удалить">
+               <i class="bi bi-trash"></i>
+            </a>
+        </div>
+    </td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="6" class="text-center">Группы оборудования не найдены</td>
+</tr>
+{% endfor %}
+{% endblock %}

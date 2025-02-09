@@ -1,0 +1,94 @@
+/* Базовые стили для приложения */
+.navbar {
+    margin-bottom: 20px;
+}
+.group_buttons{
+    display: flex;
+}
+
+.dropdown-menu {
+    position: absolute !important; /* Абсолютное позиционирование */
+    top: 100%; /* Позиция списка сразу под родительским элементом */
+    left: 0;   /* Привязка к левой стороне */
+    z-index: 1000; /* Убедитесь, что выпадающее меню поверх других элементов */
+    margin-top: 0; /* Убираем дополнительные отступы */
+}
+@media screen and (max-width:500px) {
+    header .nav-link span{
+        display: none;
+    }
+    .dropdown-menu[data-bs-popper] {
+        top: 100%;
+        left: -174px;
+        margin-top: .125rem;
+    }
+}
+
+
+td .fas.fa-trash:hover{
+    color: #FF5B5B;
+    transition: 0.3s;
+}
+
+td .fas.fa-copy:hover{
+    color: #00B074;
+    transition: 0.3s;
+}
+table{
+    border-collapse: unset;
+}
+.table-responsive{
+    border-radius: .25em;
+    border: 1px solid #ced4da;
+}
+
+td .bg-success{
+    background-color: #D9F3EA!important;
+}
+
+.card {
+    margin-bottom: 20px;
+}
+.btn-group{
+    gap: 10px;
+}
+.btn-group a{
+    border-radius: 5px!important;
+}
+
+.alert {
+    margin-top: 20px;
+}
+
+/* Стили для форм */
+.form-group {
+    margin-bottom: 15px;
+}
+
+/* Стили для таблиц */
+.table-responsive {
+    margin-top: 20px;
+}
+
+/* Стили для фотографий */
+.vehicle-photo {
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+td a {
+    text-decoration: none;
+    color: black;
+}
+
+.breadcrumb {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: ">";
+}

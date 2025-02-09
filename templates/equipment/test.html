@@ -1,0 +1,253 @@
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const viewModal = new bootstrap.Modal(document.getElementById('equipmentViewModal'));
+    
+    // Обработка просмотра
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.dataset.id;
+            
+            fetch(`/equipment/${itemId}/detail/`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('view_equipment_type').textContent = data.data.equipment_type_display;
+                    document.getElementById('view_name').textContent = data.data.name;
+                    document.getElementById('view_tip').textContent = data.data.tip;
+                    document.getElementById('view_zav_nomer').textContent = data.data.zav_nomer;
+                    document.getElementById('view_inv_nomer').textContent = data.data.inv_nomer;
+                    document.getElementById('view_reg_nomer').textContent = data.data.reg_nomer;
+                    document.getElementById('view_kol_vo').textContent = data.data.kol_vo;
+                    document.getElementById('view_klass_toch').textContent = data.data.klass_toch;
+                    document.getElementById('view_predel').textContent = data.data.predel;
+                    document.getElementById('view_period_poverk').textContent = data.data.period_poverk;
+                    document.getElementById('view_category_si').textContent = data.data.category_si;
+                    document.getElementById('view_organ_poverk').textContent = data.data.organ_poverk;
+                    document.getElementById('view_data_poverk').textContent = data.data.data_poverk;
+                    document.getElementById('view_srok_poverk').textContent = data.data.srok_poverk;
+                    document.getElementById('view_other').textContent = data.data.other;
+                    
+                    viewModal.show();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+});
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const modal = new bootstrap.Modal(document.getElementById('equipmentFormModal'));
+    const form = document.getElementById('equipmentForm');
+
+    // Открытие модального окна для создания
+    document.querySelector('.create_btn').addEventListener('click', function() {
+        document.getElementById('modalTitle').textContent = 'Создать элемент оборудования';
+        form.reset();
+        form.dataset.mode = 'create';
+        modal.show();
+    });
+
+    // Обработка редактирования
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.dataset.id;
+            console.log('Edit button clicked for item:', itemId);
+            
+            document.getElementById('modalTitle').textContent = 'Редактировать элемент';
+            form.dataset.mode = 'edit';
+            form.dataset.editUrl = `{% url 'equipment:equipment-update' '0' %}`.replace('0', itemId);
+            
+            fetch(`/equipment/${itemId}/update/`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Received data:', data);
+                if (data.status === 'success') {
+                    Object.keys(data.data).forEach(field => {
+                        const input = form.querySelector(`[name="${field}"]`);
+                        if (input) {
+                            input.value = data.data[field];
+                        }
+                    });
+                    modal.show();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+
+    // Обработка сохранения
+    document.getElementById('saveEquipment').addEventListener('click', function() {
+        const formData = new FormData(form);
+        const url = form.dataset.mode === 'create' 
+            ? '{% url "equipment:equipment-create" %}'
+            : form.dataset.editUrl;
+
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            }
+            throw new Error('Server response was not JSON');
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                modal.hide();
+                window.location.reload();
+            } else {
+                // Показ ошибок валидации
+                Object.keys(data.errors).forEach(field => {
+                    const input = document.getElementById(`id_${field}`);
+                    if (input) {
+                        input.classList.add('is-invalid');
+                        input.nextElementSibling.textContent = data.errors[field][0];
+                    }
+                });
+            }
+        });
+    });
+});
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация модального окна удаления
+        const modalElement = document.getElementById('deleteConfirmationModal');
+        if (modalElement) {
+            window.deleteModal = new bootstrap.Modal(modalElement);
+        }
+    
+        // Инициализация чекбоксов и массового выделения
+        const selectAll = document.getElementById('selectAll');
+        const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+        const bulkActions = document.querySelector('.bulk-actions');
+        
+        if (selectAll && itemCheckboxes.length && bulkActions) {
+            // Обработка выбора всех элементов
+            selectAll.addEventListener('change', function() {
+                itemCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateBulkActionsVisibility();
+            });
+            
+            // Обработка выбора отдельных элементов
+            itemCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateBulkActionsVisibility();
+                    // Обновляем состояние общего чекбокса
+                    selectAll.checked = [...itemCheckboxes].every(cb => cb.checked);
+                });
+            });
+        }
+    
+        // Групповое копирование
+        const bulkDuplicateBtn = document.getElementById('bulkDuplicate');
+        if (bulkDuplicateBtn) {
+            bulkDuplicateBtn.addEventListener('click', function() {
+                const selectedIds = [...document.querySelectorAll('.item-checkbox:checked')]
+                    .map(cb => cb.value);
+                    
+                fetch('{% url "equipment:equipment-bulk-duplicate" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        ids: selectedIds
+                    })
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            });
+        }
+    
+        // Инициализация тултипов
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+    
+    // Функция обновления видимости панели массовых действий
+    function updateBulkActionsVisibility() {
+        const bulkActions = document.querySelector('.bulk-actions');
+        if (bulkActions) {
+            const hasSelectedItems = [...document.querySelectorAll('.item-checkbox:checked')].length > 0;
+            bulkActions.style.display = hasSelectedItems ? 'flex' : 'none';
+        }
+    }
+    
+    // Функция для подтверждения удаления
+    function confirmDelete(url, itemName, itemType, additionalInfo = '') {
+        const modal = document.getElementById('deleteConfirmationModal');
+        const confirmText = document.getElementById('deleteConfirmationText');
+        const additionalInfoBlock = document.getElementById('additionalInfo');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        
+        if (!modal || !confirmText || !additionalInfoBlock || !confirmBtn || !window.deleteModal) {
+            console.error('Необходимые элементы модального окна не найдены');
+            return;
+        }
+        
+        if (Array.isArray(itemName)) {
+            confirmText.textContent = `Вы действительно хотите удалить выбранные элементы (${itemName.length} шт.)?`;
+        } else if (itemName === 'all') {
+            confirmText.textContent = `Вы действительно хотите удалить все записи?`;
+        } else {
+            confirmText.textContent = `Вы действительно хотите удалить ${itemType} "${itemName}"?`;
+        }
+        
+        additionalInfoBlock.innerHTML = additionalInfo || '';
+        
+        confirmBtn.onclick = () => {
+            if (Array.isArray(itemName)) {
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        ids: itemName
+                    })
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            } else {
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            }
+            window.deleteModal.hide();
+        };
+        
+        window.deleteModal.show();
+    }
+    </script>

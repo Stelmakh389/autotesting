@@ -1,0 +1,66 @@
+<!-- Модальное окно просмотра -->
+<div class="modal fade" id="equipmentViewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Просмотр оборудования</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="container">
+                    <div class="row">
+                        {% for field in model_fields %}
+                        <div class="col-md-6 mb-3">
+                            <strong>{{ field.verbose_name }}:</strong>
+                            <div id="view_{{ field.name }}"></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const viewModal = new bootstrap.Modal(document.getElementById('equipmentViewModal'));
+    
+    // Обработка просмотра
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const itemId = this.dataset.id;
+            
+            fetch(`/equipment/${itemId}/detail/`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Динамическое заполнение всех полей
+                    data.fields.forEach(field => {
+                        const element = document.getElementById(`view_${field.name}`);
+                        if (element) {
+                            // Специальная обработка для поля equipment_type
+                            if (field.name === 'equipment_type') {
+                                element.textContent = data.data.equipment_type_display;
+                            } else {
+                                const value = data.data[field.name];
+                                element.textContent = value !== null ? value : '';
+                            }
+                        }
+                    });
+                    
+                    viewModal.show();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+});
+</script>

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Удаление автомобиля{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>Удаление автомобиля</h2>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-danger">
+            <h4 class="alert-heading">Внимание!</h4>
+            <p>Вы действительно хотите удалить автомобиль "{{ object.brand }} {{ object.model }}" 
+               (рег. номер: {{ object.registration_number }})?</p>
+            <hr>
+            <p class="mb-0">Это действие необратимо. Все связанные данные будут также удалены.</p>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Информация об автомобиле:</h5>
+                <ul class="list-unstyled">
+                    <li><strong>VIN:</strong> {{ object.vin }}</li>
+                    <li><strong>Год выпуска:</strong> {{ object.year }}</li>
+                    <li><strong>Двигатель:</strong> {{ object.engine_number }}</li>
+                    <li><strong>Тип топлива:</strong> {{ object.get_fuel_type_display }}</li>
+                </ul>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-danger">Подтвердить удаление</button>
+                <a href="{% url 'vehicles:list' %}" class="btn btn-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
