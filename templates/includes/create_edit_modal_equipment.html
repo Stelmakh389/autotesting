@@ -74,7 +74,7 @@
             
             document.getElementById('modalTitle').textContent = 'Редактировать элемент';
             form.dataset.mode = 'edit';
-            form.dataset.editUrl = `{% url 'equipment:equipment-update' '0' %}`.replace('0', itemId);
+            form.dataset.editUrl = `{% url 'equipment:update' '0' %}`.replace('0', itemId);
             
             fetch(`/equipment/${itemId}/update/`, {
                 headers: {
@@ -102,7 +102,7 @@
     document.getElementById('saveEquipment').addEventListener('click', function() {
         const formData = new FormData(form);
         const url = form.dataset.mode === 'create' 
-            ? '{% url "equipment:equipment-create" %}'
+            ? '{% url "equipment:create" %}'
             : form.dataset.editUrl;
 
         fetch(url, {

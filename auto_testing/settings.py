@@ -24,9 +24,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-pq@b0okl0aqm_3rp)x33ts8lv6-@stx04amze*$-+a1=_@==3l'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = []
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
+
+DEBUG = bool( os.environ.get('DJANGO_DEBUG', True) )
+#ALLOWED_HOSTS = ['stelmakh3.commerce.fvds.ru']
+#ALLOWED_HOSTS = []
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 
 
 # Application definition
@@ -47,6 +70,7 @@ INSTALLED_APPS = [
     # Сторонние приложения
     'crispy_forms',
     'crispy_bootstrap5',
+    'django_select2',
 ]
 
 # Настройки для crispy-forms
@@ -96,8 +120,12 @@ WSGI_APPLICATION = 'auto_testing.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'auto_testing_db',
+        'USER': 'auto_admin',
+        'PASSWORD': 'testAuto2024!',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -126,6 +154,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
+TIME_ZONE = 'Europe/Moscow'
+
 TIME_ZONE = 'UTC'
 
 USE_I18N = True
@@ -148,6 +178,12 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Настройки для загрузки файлов
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+
+# Настройки для сообщений
+MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

@@ -12,6 +12,7 @@ urlpatterns = [
     path('organization/', include('organization.urls', namespace='organization')),
     path('equipment/', include('equipment.urls', namespace='equipment')),
     path('vehicles/', include('vehicles.urls', namespace='vehicles')),
+    path('api/', include('equipment.urls_api')),  # Добавьте эту строку
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 # Обработчики ошибок

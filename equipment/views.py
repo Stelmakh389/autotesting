@@ -1,7 +1,8 @@
 from django.shortcuts import get_object_or_404, redirect, render
-from django.db.models import Q, ExpressionWrapper, F, DateField
+from django.db.models import F, DateField, IntegerField, Q
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 from django.urls import reverse_lazy
+from django.db import models
 from django.contrib.messages.views import SuccessMessageMixin
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
@@ -15,6 +16,11 @@ from .forms import EquipmentForm, EquipmentGroupForm, CSVImportForm
 from django.db.models.functions import Now
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.timezone import localtime
+from django.template.loader import render_to_string
+from django.db.models import F, IntegerField
+from django.db.models.functions import ExtractDay, Cast, Now
+from django.views import View
+from django.core.exceptions import FieldDoesNotExist
 
 
 class DeleteMixin:
@@ -45,10 +51,10 @@ class BaseEquipmentMixin:
         context.update({
             'equipment_type_name': self.equipment_type_name,
             'equipment_type_name_accusative': self.equipment_type_name_accusative,
-            'create_url': f'equipment:equipment-create',
-            'update_url': f'equipment:equipment-update',
-            'delete_url': f'equipment:equipment-delete',
-            'cancel_url': reverse_lazy(f'equipment:{self.url_prefix}-list'),
+            'create_url': f'equipment:create',
+            'update_url': f'equipment:update',
+            'delete_url': f'equipment:delete',
+            'cancel_url': reverse_lazy(f'equipment:list'),
         })
         return context
 
@@ -59,41 +65,41 @@ class BaseEquipmentListView(LoginRequiredMixin, BaseEquipmentMixin, ListView):
     ordering = ['-id']
 
     def get_queryset(self):
+        # Получаем базовый queryset
         queryset = super().get_queryset()
         
-        # Поиск по всем полям
+        # Фильтруем по типу оборудования, если он определен
+        if hasattr(self, 'equipment_type_filter'):
+            queryset = queryset.filter(equipment_type=self.equipment_type_filter)
+        
+        # Применяем поиск, если есть
         search_query = self.request.GET.get('search')
         if search_query:
+            search_fields = [field.name for field in self.model._meta.fields 
+                           if isinstance(field, (models.CharField, models.TextField))]
+            
             q_objects = Q()
-            fields = [field.name for field in Equipment._meta.fields]
-            for field in fields:
-                try:
-                    q_objects |= Q(**{f"{field}__icontains": search_query})
-                except Exception as e:
-                    print(f"Ошибка при поиске по полю {field}: {str(e)}")
-                    continue
+            for field in search_fields:
+                q_objects |= Q(**{f"{field}__icontains": search_query})
+            
             queryset = queryset.filter(q_objects)
         
-        # Фильтрация по типу
-        equipment_type = self.request.GET.get('type')
-        if equipment_type:
-            queryset = queryset.filter(equipment_type=equipment_type)
-            
-        # Сортировка
-        sort = self.request.GET.get('sort')
-        if sort and sort in self.AVAILABLE_COLUMNS:
-            order = self.request.GET.get('order')
-            if order == 'desc':
-                sort = f'-{sort}'
-            queryset = queryset.order_by(sort)
-        
-        return queryset.distinct()
+        return queryset
 
-class BaseEquipmentCreateView(LoginRequiredMixin, SuccessMessageMixin, BaseEquipmentMixin, CreateView):
-    template_name = 'equipment/equipment_form.html'
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['app_name'] = 'equipment'  # Указываем название приложения
+        context['available_columns'] = {
+            field.name: getattr(field, 'verbose_name', field.name)
+            for field in Equipment._meta.get_fields()
+            if isinstance(field, (models.Field, models.ForeignKey, models.ManyToManyField))
+        }
+        context['selected_columns'] = self.request.session.get('equipment_columns', list(context['available_columns'].keys()))
+        return context
     
+class BaseEquipmentCreateView(LoginRequiredMixin, SuccessMessageMixin, BaseEquipmentMixin, CreateView):
     def get_success_url(self):
-        return reverse_lazy(f'equipment:{self.url_prefix}-list')
+        return reverse_lazy(f'equipment:list')
 
 class BaseEquipmentUpdateView(LoginRequiredMixin, SuccessMessageMixin, BaseEquipmentMixin, UpdateView):
     model = Equipment
@@ -101,13 +107,13 @@ class BaseEquipmentUpdateView(LoginRequiredMixin, SuccessMessageMixin, BaseEquip
     context_object_name = 'equipment'
     
     def get_success_url(self):
-        return reverse_lazy(f'equipment:{self.url_prefix}-list')
+        return reverse_lazy(f'equipment:list')
 
 class BaseEquipmentDeleteView(LoginRequiredMixin, SuccessMessageMixin, BaseEquipmentMixin, DeleteView):
     template_name = 'equipment/equipment_confirm_delete.html'
     
     def get_success_url(self):
-        return reverse_lazy(f'equipment:{self.url_prefix}-list')
+        return reverse_lazy(f'equipment:list')
 
 class EquipmentDetailView(LoginRequiredMixin, DetailView):
     model = Equipment
@@ -131,6 +137,8 @@ class EquipmentDetailView(LoginRequiredMixin, DetailView):
                 data = {
                     'equipment_type': instance.equipment_type,
                     'equipment_type_display': instance.get_equipment_type_display(),
+                    'days_between_poverk': instance.days_between_poverk,  # Добавляем дни до поверки
+                    'poverk_status': instance.poverk_status,  # Добавляем статус поверки
                 }
                 
                 # Добавляем все остальные поля
@@ -151,108 +159,140 @@ class EquipmentDetailView(LoginRequiredMixin, DetailView):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
-class EquipmentListView(BaseEquipmentListView):
-    default_columns = [
-        'equipment_type', 'name', 'zav_nomer', 'inv_nomer', 
-        'reg_nomer', 'klass_toch', 'predel'
-    ]
-   
+class EquipmentListView(LoginRequiredMixin, ListView):
+    model = Equipment
+    template_name = 'equipment/equipment_list.html'
+    context_object_name = 'equipment_list'
+    paginate_by = 30
+    ordering = ['-id']
+
+    # Автоматическое формирование списка всех полей модели
+    model_fields = [field.name for field in Equipment._meta.get_fields() if isinstance(field, models.Field)]
+
+    # Поля по умолчанию
+    default_columns = ['equipment_type', 'name', 'zav_nomer', 'inv_nomer', 'reg_nomer', 'klass_toch', 'predel', 'days_until_verification']
+
+    # Автоматическое формирование AVAILABLE_COLUMNS
     AVAILABLE_COLUMNS = {
-        'equipment_type': 'Тип',
-        'name': 'Наименование',
-        'tip': 'Тип',
-        'zav_nomer': 'Заводской №',
-        'inv_nomer': 'Инв. №', 
-        'reg_nomer': 'Рег. №',
-        'kol_vo': 'Кол-во',
-        'klass_toch': 'Класс точности',
-        'predel': 'Предел измерений',
-        'period_poverk': 'Периодичность поверки',
-        'category_si': 'Категория СИ',
-        'organ_poverk': 'Орган поверки',
-        'data_poverk': 'Дата поверки',
-        'srok_poverk': 'Срок поверки',
-        'other': 'Примечание'
+        field.name: getattr(field, 'verbose_name', field.name)
+        for field in Equipment._meta.get_fields()
+        if isinstance(field, models.Field)
     }
 
+    AVAILABLE_COLUMNS['days_until_verification'] = 'Дней до поверки'
+
     def get_selected_columns(self):
+        """
+        Получает список выбранных колонок из сессии, если они есть, иначе использует значения по умолчанию.
+        """
         return self.request.session.get('equipment_columns', self.default_columns)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    def get_queryset(self):
+        """
+        Получает и фильтрует список оборудования с учетом поискового запроса, сортировки и фильтрации по параметрам.
+        """
+        queryset = super().get_queryset()
+
+        # Аннотация количества дней до поверки (0 если уже просрочено)
+        queryset = queryset.annotate(
+            days_until_verification=ExtractDay(F('srok_poverk') - Now(), output_field=IntegerField())
+        )
+
+        # Фильтрация по типу оборудования
+        equipment_type = self.request.GET.get('type')
+        if equipment_type:
+            queryset = queryset.filter(equipment_type=equipment_type)
+
+        # Поиск по ключевым полям (можно расширить список)
+        search_query = self.request.GET.get('search')
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |
+                Q(zav_nomer__icontains=search_query) |
+                Q(inv_nomer__icontains=search_query) |
+                Q(reg_nomer__icontains=search_query) |
+                Q(klass_toch__icontains=search_query) |
+                Q(predel__icontains=search_query)
+            )
+
+        # Сортировка
+        sort = self.request.GET.get('sort')
+        order = self.request.GET.get('order')
+        if sort:
+            if sort == 'days_until_verification':
+                sort = 'days_until_verification'
+            if order == 'desc':
+                sort = f'-{sort}'
+            queryset = queryset.order_by(sort)
+
+        # Применяем фильтры из GET параметров
         selected_columns = self.get_selected_columns()
-        context['form'] = EquipmentForm()
-        
-        filters = {}
-        queryset = self.model.objects.all()
-        
         for field in selected_columns:
-            if field in self.AVAILABLE_COLUMNS:
-                values = queryset.values_list(field, flat=True).distinct().order_by(field)
-                filters[field] = [v for v in values if v]
-                
-        context.update({
-            'available_columns': self.AVAILABLE_COLUMNS,
-            'selected_columns': selected_columns,
-            'filters': filters,
-            'current_filters': {
-                field: self.request.GET.get(field) 
-                for field in selected_columns
-            }
-        })
-        return context
+            if field != 'days_between_poverk':  # Исключаем виртуальное поле
+                value = self.request.GET.get(field)
+                if value and field in self.model_fields:
+                    queryset = queryset.filter(**{field: value})
+
+        return queryset
 
     def get_context_data(self, **kwargs):
+        """
+        Добавляет в контекст данные о доступных столбцах, выбранных столбцах и фильтрах.
+        """
         context = super().get_context_data(**kwargs)
         selected_columns = self.get_selected_columns()
-        context['form'] = EquipmentForm()
 
-        filters = {}
+        # Базовый queryset для фильтров
         queryset = self.model.objects.all()
+
         # Получаем все поля модели
         model_fields = [
             {
                 'name': field.name,
-                'verbose_name': field.verbose_name
+                'verbose_name': field.verbose_name if hasattr(field, 'verbose_name') else field.name,
+                'type': field.get_internal_type()
             }
             for field in self.model._meta.fields
         ]
 
+        # Формируем доступные фильтры
+        filters = {}
         for field in selected_columns:
-            if field in self.AVAILABLE_COLUMNS:
-                values = queryset.values_list(field, flat=True).distinct().order_by(field)
+            if field in self.model_fields and field != 'days_between_poverk':
+                values = (
+                    queryset
+                    .exclude(**{f"{field}__isnull": True})
+                    .values_list(field, flat=True)
+                    .distinct()
+                    .order_by(field)
+                )
                 filters[field] = [v for v in values if v]
 
+        # Обновляем контекст
         context.update({
-            'model_fields': model_fields,  # Добавляем поля в контекст
+            'app_name': 'equipment',
+            'model_fields': model_fields,
             'available_columns': self.AVAILABLE_COLUMNS,
             'selected_columns': selected_columns,
             'filters': filters,
+            'Equipment': Equipment,
             'form': EquipmentForm(),
             'current_filters': {
-                field: self.request.GET.get(field) 
-                for field in selected_columns
+                field: self.request.GET.get(field) for field in selected_columns
             }
         })
         return context
-
-class EquipmentCreateView(BaseEquipmentCreateView):
-    form_class = EquipmentForm
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        if 'form' not in context:
-            context['form'] = self.form_class()
-        return context
-
+    
+class AjaxFormMixin:
+    """Миксин для обработки AJAX-запросов форм"""
     def form_valid(self, form):
-        response = super().form_valid(form)
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            self.object = form.save()
             return JsonResponse({
                 'status': 'success',
-                'message': 'Элемент успешно создан'
+                'message': 'Элемент успешно сохранен'
             })
-        return response
+        return super().form_valid(form)
 
     def form_invalid(self, form):
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -261,78 +301,138 @@ class EquipmentCreateView(BaseEquipmentCreateView):
                 'errors': form.errors
             })
         return super().form_invalid(form)
-    
-    def get(self, request, *args, **kwargs):
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            form = self.form_class()
-            return JsonResponse({
-                'form_html': render_to_string('equipment/equipment_form.html', 
-                                            {'form': form}, 
-                                            request=request)
-            })
-        return super().get(request, *args, **kwargs)
 
-class EquipmentUpdateView(BaseEquipmentUpdateView):
+class EquipmentCreateView(AjaxFormMixin, BaseEquipmentCreateView):
     form_class = EquipmentForm
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        if 'form' not in context:
-            context['form'] = self.form_class(instance=self.get_object())
-        return context
 
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Элемент успешно обновлен'
-            })
-        return response
-
-    def form_invalid(self, form):
-        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({
-                'status': 'error',
-                'errors': form.errors
-            })
-        return super().form_invalid(form)
-    
-    def get(self, request, *args, **kwargs):
-        try:
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                instance = self.get_object()
-                form = self.form_class(instance=instance)
-                data = {}
-                
-                for field_name in form.fields:
-                    value = getattr(instance, field_name)
-                    if isinstance(value, (date, datetime)):
-                        value = value.strftime('%Y-%m-%d')
-                    elif hasattr(value, '__str__'):  # Для всех остальных типов
-                        value = str(value)
-                    data[field_name] = value if value is not None else ''
-
-                return JsonResponse({'data': data, 'status': 'success'})
-            return super().get(request, *args, **kwargs)
-            
-        except ObjectDoesNotExist as e:
-            return JsonResponse({'error': 'Объект не найден'}, status=404)
-        except Exception as e:
-            print(f"Unexpected error: {str(e)}")
-            return JsonResponse({'error': str(e)}, status=500)
 
 class EquipmentDeleteView(DeleteMixin, BaseEquipmentDeleteView):
     success_message = "Элемент успешно удален"
 
+class EquipmentUpdateView(AjaxFormMixin, BaseEquipmentUpdateView):
+    form_class = EquipmentForm
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            instance = self.get_object()
+            data = {field.name: getattr(instance, field.name) 
+                   for field in self.model._meta.fields}
+            # Преобразование дат в строки
+            for field_name, value in data.items():
+                if isinstance(value, (date, datetime)):
+                    data[field_name] = value.strftime('%Y-%m-%d')
+                elif hasattr(value, '__str__'):
+                    data[field_name] = str(value)
+            return JsonResponse({'status': 'success', 'data': data})
+            
+        return super().get(request, *args, **kwargs)
+
+# Представления для групп оборудования
+class BaseGroupMixin:
+    model = EquipmentGroup
+    success_url = reverse_lazy('equipment:group-list')
+
+class EquipmentGroupListView(LoginRequiredMixin, ListView):
+    model = EquipmentGroup
+    template_name = 'equipment/groups/equipment_group_list.html'
+    context_object_name = 'groups'
+    paginate_by = 30
+    ordering = ['-id']
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['available_columns'] = {'name': 'Название','description': 'Описание','equipment_count': 'Количество оборудования'}
+        return context
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # Поиск по всем полям
+        search_query = self.request.GET.get('search')
+        if search_query:
+            q_objects = Q()
+            fields = [field.name for field in EquipmentGroup._meta.fields]
+            for field in fields:
+                try:
+                    q_objects |= Q(**{f"{field}__icontains": search_query})
+                except Exception as e:
+                    print(f"Ошибка при поиске по полю {field}: {str(e)}")
+                    continue
+            queryset = queryset.filter(q_objects)
+        
+        return queryset.distinct()   
+
+class EquipmentGroupCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = EquipmentGroup
+    form_class = EquipmentGroupForm
+    template_name = 'equipment/groups/equipment_group_form.html'
+    success_url = reverse_lazy('equipment:group-list')
+    success_message = "Группа оборудования успешно создана"
+
+class EquipmentGroupUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = EquipmentGroup
+    form_class = EquipmentGroupForm
+    template_name = 'equipment/groups/equipment_group_form.html'
+    success_url = reverse_lazy('equipment:group-list')
+    success_message = "Группа оборудования успешно обновлена"
+
+class EquipmentGroupDeleteView(LoginRequiredMixin, DeleteView):
+    model = EquipmentGroup
+    success_url = reverse_lazy('equipment:group-list')
+    
+    def delete(self, request, *args, **kwargs):
+        try:
+            self.object = self.get_object()
+            self.object.delete()
+            messages.success(request, 'Группа оборудования успешно удалена')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'success'})
+            return super().delete(request, *args, **kwargs)
+        except Exception as e:
+            messages.error(request, f'Ошибка при удалении: {str(e)}')
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            return self.render_to_response(self.get_context_data())
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'status': 'success'})
+        return self.delete(request, *args, **kwargs)
+
+class EquipmentGroupDetailView(LoginRequiredMixin, DetailView):
+    model = EquipmentGroup
+    template_name = 'equipment/groups/equipment_group_detail.html'
+    context_object_name = 'group'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        group = self.get_object()
+        
+        # Фильтруем оборудование по типам
+        context.update({
+            'si_equipment': group.equipment.filter(equipment_type='СИ'),
+            'io_equipment': group.equipment.filter(equipment_type='ИО'),
+            'vo_equipment': group.equipment.filter(equipment_type='ВО'),
+        })
+        
+        return context
+
 # Функции для работы с оборудованием
-@login_required 
-def save_equipment_columns(request):
+@login_required
+def save_columns(request):
     if request.method == 'POST':
-        selected = request.POST.getlist('columns')
-        request.session['equipment_columns'] = selected
+        selected_columns = request.POST.getlist('columns')
+        referer = request.META.get('HTTP_REFERER', '')
+
+        # Определяем, с какой страницы пришел запрос
+        if 'equipment' in referer:
+            request.session['equipment_columns'] = selected_columns
+        elif 'equipment' in referer:
+            request.session['equipment_columns'] = selected_columns
+
         messages.success(request, 'Настройки отображения сохранены')
-    return redirect('equipment:equipment-list')
+        return redirect(referer)
 
 @login_required
 def duplicate_equipment(request, pk, equipment_type):
@@ -340,9 +440,9 @@ def duplicate_equipment(request, pk, equipment_type):
     source_equipment.pk = None
     source_equipment.name = f"{source_equipment.name} (копия)"
     source_equipment.save()
-    
+
     messages.success(request, "Элемент успешно скопирован")
-    return redirect('equipment:equipment-list')
+    return redirect('equipment:list')
 
 
 @login_required
@@ -406,7 +506,7 @@ def import_equipment(request):
            except Exception as e:
                messages.error(request, f'Ошибка при импорте: {str(e)}')
            
-           return redirect('equipment:equipment-list')
+           return redirect('equipment:list')
    else:
        form = CSVImportForm()
 
@@ -513,47 +613,35 @@ def bulk_duplicate_equipment(request):
     
     return JsonResponse({'status': 'error'}, status=400)
 
-# Представления для групп оборудования
-class BaseGroupMixin:
-    model = EquipmentGroup
-    success_url = reverse_lazy('equipment:equipment-group-list')
+class DuplicateEquipmentView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        return self.duplicate(request, pk)
 
-class EquipmentGroupListView(LoginRequiredMixin, ListView):
-    model = EquipmentGroup
-    template_name = 'equipment/equipment_group_list.html'
-    context_object_name = 'groups'
-    paginate_by = 30
+    def get(self, request, pk, *args, **kwargs):
+        return self.duplicate(request, pk)
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['available_columns'] = {
-            'name': 'Название',
-            'description': 'Описание',
-            'equipment_count': 'Количество оборудования'
-        }
-        return context
+    def duplicate(self, request, pk):
+        source_equipment = get_object_or_404(Equipment, pk=pk)
+        source_equipment.pk = None
+        source_equipment.name = f"{source_equipment.name} (копия)"
+        source_equipment.save()
 
-class EquipmentGroupCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
-    model = EquipmentGroup
-    form_class = EquipmentGroupForm
-    template_name = 'equipment/equipment_group_form.html'
-    success_url = reverse_lazy('equipment:equipment-group-list')
-    success_message = "Группа оборудования успешно создана"
+        messages.success(request, "Элемент успешно скопирован")
+        return redirect('equipment:list')
+    
+class DuplicateGroupEquipmentView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        return self.duplicate(request, pk)
 
-class EquipmentGroupUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
-    model = EquipmentGroup
-    form_class = EquipmentGroupForm
-    template_name = 'equipment/equipment_group_form.html'
-    success_url = reverse_lazy('equipment:equipment-group-list')
-    success_message = "Группа оборудования успешно обновлена"
+    def get(self, request, pk, *args, **kwargs):
+        return self.duplicate(request, pk)
 
-class EquipmentGroupDeleteView(DeleteMixin, LoginRequiredMixin, DeleteView):
-    model = EquipmentGroup
-    template_name = 'equipment/equipment_group_confirm_delete.html'
-    success_url = reverse_lazy('equipment:equipment-group-list')
-    success_message = "Группа оборудования успешно удалена"
-
-class EquipmentGroupDetailView(LoginRequiredMixin, DetailView):
-    model = EquipmentGroup
-    template_name = 'equipment/equipment_group_detail.html'
-    context_object_name = 'group'
+    def duplicate(self, request, pk):
+        original_group = get_object_or_404(EquipmentGroup, pk=pk)
+        new_group = EquipmentGroup.objects.create(
+            name=f"Копия - {original_group.name}",
+            conditions=original_group.conditions
+        )
+        new_group.equipment.set(original_group.equipment.all())
+        messages.success(request, "Группа оборудования успешно скопирована")
+        return redirect('equipment:group-list')

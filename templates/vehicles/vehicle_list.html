@@ -1,8 +1,278 @@
 {% extends 'base.html' %}
+
+{% load vehicle_filters %}
 {% load static %}
 
-{% block title %}Автомобили{% endblock %}
+{% block title %}Список автомобилей{% endblock %}
 
 {% block content %}
+<style>
+    .table-container {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    .table td {
+        max-height: 40px;
+        line-height: 40px;
+        padding: 0 8px;
+        max-width: 150px;
+    }
+    .table td a {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    [aria-label="Навигация по страницам"]{
+         margin-top: 20px;
+    }
+    .bulk-actions {
+         position: fixed;
+         left: 0;
+         bottom: 0;
+         width: 100vw;
+         display: flex;
+         justify-content: center;
+         align-items: center;
+         padding: 10px;
+     }
+
+     .bulk-actions::before {
+         content: "";
+         position: absolute;
+         inset: 0;
+         background: black;
+         opacity: 0.1; /* Прозрачность только для фона */
+         z-index: -1; /* Чтобы фон был под контентом */
+     }
+</style>
+<div class="bulk-actions" style="display: none;">
+    <button type="button" class="btn btn-danger me-2" onclick="const selected = [...document.querySelectorAll('.item-checkbox:checked')].map(cb => cb.value); confirmDelete('{% url 'vehicles:bulk-delete' %}', selected, 'выбранные элементы');">
+        <i class="fas fa-trash"></i> Удалить выбранные
+    </button>
+    <button type="button" class="btn btn-primary" id="bulkDuplicate">
+        <i class="fas fa-copy"></i> Копировать выбранные
+    </button>
+</div>
+<div class="container-fluid">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3">
+        <h1 class="mb-2 mb-md-0">Список автомобилей</h1>
+    </div>
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3"> 
+        <form method="get" class="d-flex col-md-8">
+            <input type="text" name="search" class="form-control me-2" 
+                placeholder="Поиск по марке, модели, VIN или гос. номеру..." 
+                value="{{ request.GET.search }}">
+            <button type="submit" class="btn btn-outline-primary">
+                <i class="fas fa-search"></i>
+            </button>
+            {% if request.GET.search %}
+                <a href="{% url 'vehicles:list' %}" class="btn btn-outline-secondary ms-2">
+                    <i class="fas fa-times"></i> Сброс
+                </a>
+            {% endif %}
+        </form>
+        <div class="group_buttons">
+            <a href="{% url 'vehicles:create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Добавить авто
+            </a>
+            <button type="button" class="btn btn-outline-primary ms-2" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#columnSettingsModal">
+                    <i class="fas fa-columns"></i> Настройки столбцов
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a href="#" onclick="confirmDelete('{% url 'vehicles:delete-all' %}', 'all', 'все записи'); return false;" class="dropdown-item text-danger">
+                        <i class="fas fa-trash"></i> Удалить все
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="filters mb-3">
+        {% for column in selected_columns %}
+            {% if filters|get_item:column %}
+            <div class="dropdown d-inline-block me-2">
+                <button class="btn btn-outline-secondary dropdown-toggle mb-2" type="button" data-bs-toggle="dropdown">
+                    {{ available_columns|get_item:column }}: 
+                    {% if current_filters|get_item:column %}
+                        {{ current_filters|get_item:column }}
+                    {% else %}
+                        Все
+                    {% endif %}
+                </button>
+                <ul class="dropdown-menu" style="max-height: 500px; overflow-y: auto;">
+                    <li><a class="dropdown-item {% if not current_filters|get_item:column %}active{% endif %}" style="max-width: 500px;" href="?">Все</a></li>
+                    {% for value in filters|get_item:column %}
+                        <li style="max-width: 500px;">
+                            <a class="dropdown-item {% if current_filters|get_item:column == value|stringformat:'s' %}active{% endif %}" 
+                            href="?{% if request.GET.type %}type={{ request.GET.type }}&{% endif %}{{ column }}={{ value|urlencode }}">
+                                {{ value }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    {% if vehicles %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>
+                            <input type="checkbox" id="selectAll" class="form-check-input">
+                        </th>
+                        {% for column in selected_columns %}
+                        <th>
+                            <div class="btn-group btn-group-sm">
+                                <!-- Название столбца -->
+                                <a href="?sort={{ column }}&order={% if request.GET.sort == column and request.GET.order == 'asc' %}desc{% else %}asc{% endif %}" 
+                                   class="btn btn-sm">
+                                    {{ available_columns|get_item:column }}
+                                    <i class="fas {% if request.GET.sort == column and request.GET.order == 'asc' %}fa-arrow-up{% else %}fa-arrow-down{% endif %}"></i>
+                                </a>
+                            </div>
+                        </th>                
+                        {% endfor %}
+                        <th>Действия</th>
+                        <th>Протоколы</th>
+                    </tr>
+                 </thead>
+                <tbody>
+                    {% for vehicle in vehicles %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="selected_items" value="{{ vehicle.pk }}" class="form-check-input item-checkbox">
+                            </td>
+                            {% for column in selected_columns %}
+                                <td>
+                                    <a href="{% url 'vehicles:detail' vehicle.pk %}">
+                                        {{ vehicle|get_attr:column }}
+                                    </a>
+                                </td>
+                            {% endfor %}
+                            <td>
+                                <div class="group_buttons">
+                                    <a href="{% url 'vehicles:duplicate' vehicle.pk %}" class="btn"><i class="fas fa-copy"></i></a>
+                                    <a href="{% url 'vehicles:update' vehicle.pk %}" class="btn"><i class="fas fa-edit"></i></a>
+                                    <a href="#" class="btn" onclick="confirmDelete('{% url 'vehicles:delete' vehicle.pk %}', '{{ vehicle.brand }} {{ vehicle.model }}', 'автомобиль')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                            <td>
+                                {% if vehicle.protocols.exists %}
+                                    <span class="badge bg-success text-success rounded-pill px-3 py-2">Протоколы созданы</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        
+    
+        {% if request.GET.search %}
+            <div class="alert alert-warning" role="alert">
+                По запросу "{{ request.GET.search }}" ничего не найдено.
+                <a href="{% url 'vehicles:list' %}" class="alert-link">Сбросить поиск</a>
+            </div>
+        {% else %}
+            <div class="alert alert-info" role="alert">
+                Список автомобилей пуст. 
+                <a href="{% url 'vehicles:create' %}" class="alert-link">Добавить первый автомобиль</a>
+            </div>
+        {% endif %}
+    {% endif %}
+    {% include 'includes/pagination.html' %}
+</div>
+
+{% include 'includes/delete_confirmation_modal_equipment.html' %}
+{% csrf_token %}
+{% include 'includes/save_columns.html' %}
+
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Инициализация модального окна удаления
+    const modalElement = document.getElementById('deleteConfirmationModal');
+    if (modalElement) {
+        window.deleteModal = new bootstrap.Modal(modalElement);
+    }
+});
+</script>
+<script>
+    // Инициализация чекбоксов и массового выделения
+    const selectAll = document.getElementById('selectAll');
+    const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+    const bulkActions = document.querySelector('.bulk-actions');
+    
+    if (selectAll && itemCheckboxes.length && bulkActions) {
+        // Обработка выбора всех элементов
+        selectAll.addEventListener('change', function() {
+            itemCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateBulkActionsVisibility();
+        });
+        
+        // Обработка выбора отдельных элементов
+        itemCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateBulkActionsVisibility();
+                // Обновляем состояние общего чекбокса
+                selectAll.checked = [...itemCheckboxes].every(cb => cb.checked);
+            });
+        });
+    }
+
+    // Групповое копирование
+    const bulkDuplicateBtn = document.getElementById('bulkDuplicate');
+    if (bulkDuplicateBtn) {
+        bulkDuplicateBtn.addEventListener('click', function() {
+            const selectedIds = [...document.querySelectorAll('.item-checkbox:checked')]
+                .map(cb => cb.value);
+                
+            fetch('{% url "vehicles:bulk-duplicate" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    ids: selectedIds
+                })
+            }).then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                }
+            });
+        });
+    }
+
+    // Инициализация тултипов
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+    // Функция обновления видимости панели массовых действий
+    function updateBulkActionsVisibility() {
+        const bulkActions = document.querySelector('.bulk-actions');
+        if (bulkActions) {
+            const hasSelectedItems = [...document.querySelectorAll('.item-checkbox:checked')].length > 0;
+            bulkActions.style.display = hasSelectedItems ? 'flex' : 'none';
+        }
+    }
+</script>
+
 
 {% endblock %}

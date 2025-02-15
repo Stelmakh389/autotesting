@@ -17,3 +17,7 @@ def get_attr(obj, attr):
 def stringformat(value, format_string):
     return format(value, format_string)
 
+@register.filter
+def filter_by_type(equipment, equipment_type):
+    return equipment.filter(equipment_type=equipment_type)
+

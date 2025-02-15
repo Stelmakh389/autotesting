@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load equipment_filters %}
+
+{% block title %}{{ group.name }} - Группа оборудования{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h2>{{ group.name }}</h2>
+        <div class="btn-group">
+            <a href="{% url 'equipment:group-update' group.id %}" class="btn btn-warning">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+            <button class="btn btn-secondary copy-group" data-id="{{ group.id }}">
+                <i class="bi bi-files"></i> Копировать
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if group.description %}
+        <div class="alert alert-info">
+            {{ group.description }}
+        </div>
+        {% endif %}
+
+        {% if group.equipment.exists %}
+                    <!-- Средства измерения -->
+                    <div class="mb-4">
+                        <h5>Средства измерения (СИ)</h5>
+                        
+                            {% if si_equipment %}
+                                <div class="list-group">
+                                    {% for item in si_equipment %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex w-100 justify-content-between">
+                                                <h6 class="mb-1">{{ item.name }}</h6>
+                                                {% if item.srok_poverk %}
+                                                    <small class="text-{{ item.poverk_status }}">
+                                                        До поверки: {{ item.days_between_poverk }} дн.
+                                                    </small>
+                                                {% endif %}
+                                            </div>
+                                            {% if item.zav_nomer %}
+                                                <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted">Нет средств измерения</p>
+                            {% endif %}
+                        
+                    </div>
+
+                    <!-- Испытательное оборудование -->
+                    <div class="mb-4">
+                        <h5>Испытательное оборудование (ИО)</h5>
+                        
+                            {% if io_equipment %}
+                                <div class="list-group">
+                                    {% for item in io_equipment %}
+                                        <div class="list-group-item">
+                                            <h6 class="mb-1">{{ item.name }}</h6>
+                                            {% if item.zav_nomer %}
+                                                <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted">Нет испытательного оборудования</p>
+                            {% endif %}
+                        
+                    </div>
+
+                    <!-- Вспомогательное оборудование -->
+                    <div class="mb-4">
+                        <h5>Вспомогательное оборудование (ВО)</h5>
+                        
+                            {% if vo_equipment %}
+                                <div class="list-group">
+                                    {% for item in vo_equipment %}
+                                        <div class="list-group-item">
+                                            <h6 class="mb-1">{{ item.name }}</h6>
+                                            {% if item.zav_nomer %}
+                                                <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted">Нет вспомогательного оборудования</p>
+                            {% endif %}
+                        
+                    </div>
+                    
+                {% else %}
+                    <p class="text-muted">В данной группе нет оборудования</p>
+                {% endif %}
+
+        <!-- Условия отображения -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">Условия отображения</h4>
+            </div>
+            <div class="card-body">
+                {% if group.conditions %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Поле</th>
+                                    <th>Оператор</th>
+                                    <th>Значение</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for condition in group.conditions %}
+                                <tr>
+                                    <td>
+                                        {% if condition.field == 'engine_volume' %}
+                                            Объем двигателя
+                                        {% elif condition.field == 'engine_power' %}
+                                            Мощность двигателя
+                                        {% elif condition.field == 'fuel_type' %}
+                                            Тип топлива
+                                        {% elif condition.field == 'max_mass' %}
+                                            Максимальная масса
+                                        {% elif condition.field == 'unladen_mass' %}
+                                            Масса без нагрузки
+                                        {% else %}
+                                            {{ condition.field }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if condition.operator == '=' %}
+                                            равно
+                                        {% elif condition.operator == '>=' %}
+                                            больше или равно
+                                        {% elif condition.operator == '<=' %}
+                                            меньше или равно
+                                        {% else %}
+                                            {{ condition.operator }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if condition.field == 'fuel_type' %}
+                                            {% if condition.value == 'gasoline' %}
+                                                Бензин
+                                            {% elif condition.value == 'diesel' %}
+                                                Дизель
+                                            {% elif condition.value == 'gas' %}
+                                                Газ
+                                            {% elif condition.value == 'electric' %}
+                                                Электро
+                                            {% elif condition.value == 'hybrid' %}
+                                                Гибрид
+                                            {% else %}
+                                                {{ condition.value }}
+                                            {% endif %}
+                                        {% else %}
+                                            {{ condition.value }}
+                                            {% if condition.field == 'engine_volume' %}л{% endif %}
+                                            {% if condition.field == 'engine_power' %}л.с.{% endif %}
+                                            {% if condition.field == 'max_mass' or condition.field == 'unladen_mass' %}кг{% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">Условия отображения не заданы</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card-footer">
+        <a href="{% url 'equipment:group-list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Вернуться к списку
+        </a>
+    </div>
+</div>
+
+{% include 'includes/delete_confirmation_modal_equipment.html' %}
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+<style>
+    .text-danger {
+        color: #dc3545 !important;
+    }
+    .text-warning {
+        color: #ffc107 !important;
+    }
+    .text-normal {
+        color: #198754 !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    window.deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmationModal'));
+
+    document.querySelector('.copy-group')?.addEventListener('click', function() {
+        const groupId = this.dataset.id;
+        
+        fetch(`/equipment/groups/${groupId}/copy/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.href = '{% url "equipment:group-list" %}';
+            } else {
+                alert('Ошибка при копировании группы: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Произошла ошибка при копировании группы');
+        });
+    });
+});
+</script>
+{% endblock %}

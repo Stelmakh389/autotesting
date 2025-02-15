@@ -2,9 +2,12 @@
 <div class="modal fade" id="equipmentViewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Просмотр оборудования</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header d-flex justify-content-between align-items-center">
+                <h2 class="modal-title">Просмотр оборудования</h2>
+                <div id="verification_status" class="ms-auto">
+                    <!-- Статус поверки будет добавлен через JavaScript -->
+                </div>
+                <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="container">
@@ -26,10 +29,9 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
     const viewModal = new bootstrap.Modal(document.getElementById('equipmentViewModal'));
     
-    // Обработка просмотра
     document.querySelectorAll('.view-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const itemId = this.dataset.id;
@@ -42,13 +44,37 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Динамическое заполнение всех полей
+                    // Обновляем статус поверки
+                    const verificationStatus = document.getElementById('verification_status');
+                    if (verificationStatus) {
+                        let statusHtml = '';
+                        let statusClass = '';
+
+                        if (data.data.days_between_poverk !== null) {
+                            statusHtml = `Осталось ${data.data.days_between_poverk} дней `;
+                            
+                            if (data.data.poverk_status === 'danger') {
+                                statusClass = 'text-danger fw-bold';
+                                statusHtml += '<span class="badge bg-danger">Срочно требуется поверка!</span>';
+                            } else if (data.data.poverk_status === 'warning') {
+                                statusClass = 'text-warning fw-bold';
+                                statusHtml += '<span class="badge bg-warning text-dark">Скоро потребуется поверка</span>';
+                            }
+                        }
+
+                        verificationStatus.className = `ms-auto ${statusClass}`;
+                        verificationStatus.innerHTML = statusHtml;
+                    }
+
+                    // Обновляем остальные поля
                     data.fields.forEach(field => {
                         const element = document.getElementById(`view_${field.name}`);
                         if (element) {
-                            // Специальная обработка для поля equipment_type
                             if (field.name === 'equipment_type') {
                                 element.textContent = data.data.equipment_type_display;
+                            } else if (field.name === 'data_poverk' || field.name === 'srok_poverk') {
+                                const value = data.data[field.name];
+                                element.textContent = value ? new Date(value).toLocaleDateString() : '';
                             } else {
                                 const value = data.data[field.name];
                                 element.textContent = value !== null ? value : '';
@@ -59,7 +85,9 @@
                     viewModal.show();
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+            });
         });
     });
 });

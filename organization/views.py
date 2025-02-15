@@ -9,7 +9,7 @@ class OrganizationUpdateView(SuccessMessageMixin, UpdateView):
     model = Organization
     form_class = OrganizationForm
     template_name = 'organization/organization_form.html'
-    success_url = reverse_lazy('organization:organization-detail')
+    success_url = reverse_lazy('organization:detail')
     success_message = "Данные организации успешно обновлены"
     
     def get_object(self):

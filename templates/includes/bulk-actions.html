@@ -1,0 +1,73 @@
+<div class="bulk-actions" style="display: none;">
+    <button type="button" class="btn btn-danger me-2" onclick="const selected = [...document.querySelectorAll('.item-checkbox:checked')].map(cb => cb.value); confirmDelete('{% url 'equipment:bulk-delete' %}', selected, 'выбранные элементы');">
+        <i class="fas fa-trash"></i> Удалить выбранные
+    </button>
+    <button type="button" class="btn btn-primary" id="bulkDuplicate">
+        <i class="fas fa-copy"></i> Копировать выбранные
+    </button>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация чекбоксов и массового выделения
+        const selectAll = document.getElementById('selectAll');
+        const itemCheckboxes = document.querySelectorAll('.item-checkbox');
+        const bulkActions = document.querySelector('.bulk-actions');
+        
+        if (selectAll && itemCheckboxes.length && bulkActions) {
+            // Обработка выбора всех элементов
+            selectAll.addEventListener('change', function() {
+                itemCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateBulkActionsVisibility();
+            });
+            
+            // Обработка выбора отдельных элементов
+            itemCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateBulkActionsVisibility();
+                    // Обновляем состояние общего чекбокса
+                    selectAll.checked = [...itemCheckboxes].every(cb => cb.checked);
+                });
+            });
+        }
+
+        // Групповое копирование
+        const bulkDuplicateBtn = document.getElementById('bulkDuplicate');
+        if (bulkDuplicateBtn) {
+            bulkDuplicateBtn.addEventListener('click', function() {
+                const selectedIds = [...document.querySelectorAll('.item-checkbox:checked')]
+                    .map(cb => cb.value);
+                    
+                fetch('{% url "equipment:bulk-duplicate" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify({
+                        ids: selectedIds
+                    })
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    }
+                });
+            });
+        }
+
+        // Инициализация тултипов
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+        // Функция обновления видимости панели массовых действий
+        function updateBulkActionsVisibility() {
+            const bulkActions = document.querySelector('.bulk-actions');
+            if (bulkActions) {
+                const hasSelectedItems = [...document.querySelectorAll('.item-checkbox:checked')].length > 0;
+                bulkActions.style.display = hasSelectedItems ? 'flex' : 'none';
+            }
+        }
+    });
+    
+</script>

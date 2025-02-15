@@ -6,5 +6,5 @@ from .views import OrganizationUpdateView
 app_name = 'organization'
 
 urlpatterns = [
-    path('', OrganizationUpdateView.as_view(), name='organization-detail'),
+    path('', OrganizationUpdateView.as_view(), name='detail'),
 ]

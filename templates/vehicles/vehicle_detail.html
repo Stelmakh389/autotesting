@@ -1,77 +1,94 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load vehicle_filters %}
 
-{% block title %}{{ vehicle.brand }} {{ vehicle.model }}{% endblock %}
+{% block title %}{{ vehicle.brand }} {{ vehicle.model }} {{ vehicle.vin }}{% endblock %}
 
 {% block content %}
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h2>{{ vehicle.brand }} {{ vehicle.model }}</h2>
+        <h2>{{ vehicle.brand }} {{ vehicle.commercial_name }}</h2>
         <div class="btn-group">
             <a href="{% url 'vehicles:update' vehicle.id %}" class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Редактировать
             </a>
-            <a href="{% url 'vehicles:delete' vehicle.id %}" class="btn btn-danger">
-                <i class="bi bi-trash"></i> Удалить
-            </a>
         </div>
     </div>
     <div class="card-body">
-        <div class="row mb-4">
-            <!-- Основные характеристики -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="mb-0">Основные характеристики</h5>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row mb-0">
-                            <dt class="col-sm-4">VIN</dt>
-                            <dd class="col-sm-8">{{ vehicle.vin }}</dd>
-                            
-                            <dt class="col-sm-4">Рег. номер</dt>
-                            <dd class="col-sm-8">{{ vehicle.registration_number }}</dd>
-                            
-                            <dt class="col-sm-4">Год выпуска</dt>
-                            <dd class="col-sm-8">{{ vehicle.year }}</dd>
-                            
-                            <dt class="col-sm-4">№ двигателя</dt>
-                            <dd class="col-sm-8">{{ vehicle.engine_number }}</dd>
-                            
-                            <dt class="col-sm-4">№ шасси</dt>
-                            <dd class="col-sm-8">{{ vehicle.chassis_number }}</dd>
-                            
-                            <dt class="col-sm-4">№ кузова</dt>
-                            <dd class="col-sm-8">{{ vehicle.body_number }}</dd>
-                        </dl>
-                    </div>
+        <!-- Данные заказчика -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Данные заказчика</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% for field in customer_fields %}
+                            {% with value=customer_data|field_value:field %}
+                                {% if value and value != '—' %}
+                                    <dt class="col-sm-4">{{ field.verbose_name }}</dt>
+                                    <dd class="col-sm-8">
+                                        {{ value }}
+                                        {% if field.help_text %}
+                                            <small class="text-muted d-block">{{ field.help_text }}</small>
+                                        {% endif %}
+                                    </dd>
+                                {% endif %}
+                            {% endwith %}
+                        {% endfor %}
+                    </dl>
                 </div>
             </div>
+        </div>
 
-            <!-- Технические характеристики -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="mb-0">Технические характеристики</h5>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row mb-0">
-                            <dt class="col-sm-4">Объем двигателя</dt>
-                            <dd class="col-sm-8">{{ vehicle.engine_volume }} л</dd>
-                            
-                            <dt class="col-sm-4">Мощность</dt>
-                            <dd class="col-sm-8">{{ vehicle.engine_power }} л.с.</dd>
-                            
-                            <dt class="col-sm-4">Тип топлива</dt>
-                            <dd class="col-sm-8">{{ vehicle.get_fuel_type_display }}</dd>
-                            
-                            <dt class="col-sm-4">Макс. масса</dt>
-                            <dd class="col-sm-8">{{ vehicle.max_mass }} кг</dd>
-                            
-                            <dt class="col-sm-4">Масса без нагрузки</dt>
-                            <dd class="col-sm-8">{{ vehicle.unladen_mass }} кг</dd>
-                        </dl>
-                    </div>
+        <!-- Данные испытаний -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Данные испытаний</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% for field in test_fields %}
+                            {% with value=test_data|field_value:field %}
+                                {% if value and value != '—' %}
+                                    <dt class="col-sm-4">{{ field.verbose_name }}</dt>
+                                    <dd class="col-sm-8">
+                                        {{ value }}
+                                        {% if field.help_text %}
+                                            <small class="text-muted d-block">{{ field.help_text }}</small>
+                                        {% endif %}
+                                    </dd>
+                                {% endif %}
+                            {% endwith %}
+                        {% endfor %}
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Характеристики автомобиля -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Характеристики автомобиля</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        {% for field in vehicle_fields %}
+                            {% with value=vehicle|field_value:field %}
+                                {% if value and value != '—' %}
+                                    <dt class="col-sm-4">{{ field.verbose_name }}</dt>
+                                    <dd class="col-sm-8">
+                                        {{ value }}
+                                        {% if field.help_text %}
+                                            <small class="text-muted d-block">{{ field.help_text }}</small>
+                                        {% endif %}
+                                    </dd>
+                                {% endif %}
+                            {% endwith %}
+                        {% endfor %}
+                    </dl>
                 </div>
             </div>
         </div>
@@ -82,38 +99,86 @@
                 <h5 class="mb-0">Необходимое оборудование</h5>
             </div>
             <div class="card-body">
-                {% with required_equipment=vehicle.get_required_equipment %}
-                    {% if required_equipment %}
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Название</th>
-                                        <th>Модель</th>
-                                        <th>Серийный номер</th>
-                                        <th>Дата поверки</th>
-                                        <th>Следующая поверка</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for equipment in required_equipment %}
-                                    <tr>
-                                        <td>{{ equipment.name }}</td>
-                                        <td>{{ equipment.model }}</td>
-                                        <td>{{ equipment.serial_number }}</td>
-                                        <td>{{ equipment.verification_date }}</td>
-                                        <td>{{ equipment.next_verification_date }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <p class="text-muted">Для данного автомобиля не найдено подходящего оборудования</p>
-                    {% endif %}
-                {% endwith %}
+                {% if required_si.exists or required_io.exists or required_vo.exists %}
+                    <!-- Средства измерения -->
+                    <div class="mb-5">
+                        <h5 class="mb-4"> Средства измерения (СИ)</h5>
+                        {% if required_si %}
+                            <div class="list-group">
+                                {% for item in required_si %}
+                                    <div class="list-group-item">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h6 class="mb-1">{{ item.name }}</h6>
+                                        </div>
+                                        {% if item.zav_nomer %}
+                                            <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">Нет средств измерения</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Испытательное оборудование -->
+                    <div class="mb-5">
+                        <h5 class="mb-4">Испытательное оборудование (ИО)</h5>
+                        {% if required_io %}
+                            <div class="list-group">
+                                {% for item in required_io %}
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1">{{ item.name }}</h6>
+                                        {% if item.zav_nomer %}
+                                            <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">Нет испытательного оборудования</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Вспомогательное оборудование -->
+                    <div class="mb-5">
+                        <h5 class="mb-4">Вспомогательное оборудование (ВО)</h5>
+                        {% if required_vo %}
+                            <div class="list-group">
+                                {% for item in required_vo %}
+                                    <div class="list-group-item">
+                                        <h6 class="mb-1">{{ item.name }}</h6>
+                                        {% if item.zav_nomer %}
+                                            <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted">Нет вспомогательного оборудования</p>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Для данного автомобиля не найдено подходящего оборудования</p>
+                {% endif %}
             </div>
         </div>
+        
+
+        <!-- Фотографии -->
+        {% if vehicle.vehicle_photos.all %}
+            <div class="row">
+                {% for photo in vehicle.vehicle_photos.all %}
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <img src="{{ photo.image.url }}" class="card-img-top" alt="Фото автомобиля">
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted">Фотографии не загружены</p>
+        {% endif %}
 
         <!-- Подходящие группы оборудования (для отладки) -->
         {% if request.user.is_staff %}
@@ -141,39 +206,57 @@
             </div>
         </div>
         {% endif %}
-
-        <!-- Протоколы -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Протоколы</h5>
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Протоколы</h4>
+                <a href="{% url 'vehicles:generate-protocols' vehicle.pk %}" class="btn btn-primary">
+                    <i class="fas fa-file-alt"></i> Сформировать протоколы
+                </a>
             </div>
             <div class="card-body">
-                <div class="d-flex gap-2">
-                    <div class="btn-group">
-                        <a href="{% url 'vehicles:test_protocol' vehicle.id %}?format=docx" 
-                           class="btn btn-primary">
-                            <i class="bi bi-file-earmark-word"></i> Протокол испытаний (DOCX)
-                        </a>
-                        <a href="{% url 'vehicles:test_protocol' vehicle.id %}?format=pdf" 
-                           class="btn btn-primary">
-                            <i class="bi bi-file-earmark-pdf"></i> Протокол испытаний (PDF)
-                        </a>
+                {% if vehicle.protocols.exists %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Тип протокола</th>
+                                    <th>DOCX</th>
+                                    <th>PDF</th>
+                                    <th>Дата создания</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for protocol in vehicle.protocols.all %}
+                                    <tr>
+                                        <td>{{ protocol.get_protocol_type_display }}</td>
+                                        <td>
+                                            {% if protocol.docx_file %}
+                                                <a href="{{ protocol.docx_file.url }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-file-word"></i> Скачать DOCX
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if protocol.pdf_file %}
+                                                <a href="{{ protocol.pdf_file.url }}" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-file-pdf"></i> Скачать PDF
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ protocol.created_at|date:"d.m.Y H:i" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    
-                    <div class="btn-group">
-                        <a href="{% url 'vehicles:expertise_protocol' vehicle.id %}?format=docx" 
-                           class="btn btn-secondary">
-                            <i class="bi bi-file-earmark-word"></i> Протокол экспертизы (DOCX)
-                        </a>
-                        <a href="{% url 'vehicles:expertise_protocol' vehicle.id %}?format=pdf" 
-                           class="btn btn-secondary">
-                            <i class="bi bi-file-earmark-pdf"></i> Протокол экспертизы (PDF)
-                        </a>
-                    </div>
-                </div>
+                {% else %}
+                    <p class="text-muted">Протоколы еще не сгенерированы</p>
+                {% endif %}
             </div>
         </div>
     </div>
+
+    
 
     <div class="card-footer">
         <a href="{% url 'vehicles:list' %}" class="btn btn-secondary">

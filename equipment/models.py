@@ -1,5 +1,6 @@
 from django.db import models
 from datetime import date
+from django.utils.timezone import localdate
 
 class Equipment(models.Model):
     EQUIPMENT_TYPES = [
@@ -7,21 +8,21 @@ class Equipment(models.Model):
         ('ИО', 'ИО'),
         ('ВО', 'ВО'),
     ]
-    
+
     equipment_type = models.CharField("Тип оборудования", max_length=2, choices=EQUIPMENT_TYPES)
     name = models.TextField("Наименование, модель", blank=True, null=True)
     tip = models.TextField("Тип", blank=True, null=True)
     zav_nomer = models.TextField("Заводской №", blank=True, null=True)
     inv_nomer = models.TextField("Инв. №, год ввода в эксплуатацию", blank=True, null=True)
     reg_nomer = models.TextField("Регистрационный номер СИ в Госреестре СИ", blank=True, null=True)
-    kol_vo = models.PositiveIntegerField("Кол-во", blank=True, null=True)
+    kol_vo = models.PositiveIntegerField("Кол-во", blank=True, default=1)
     klass_toch = models.TextField("Класс точности, погрешность /ТТХ", blank=True, null=True)
     predel = models.TextField("Предел (диапазон измерений)", blank=True, null=True)
     period_poverk = models.TextField("Периодичность поверки", blank=True, null=True)
     category_si = models.TextField("Категория СИ", blank=True, null=True)
     organ_poverk = models.TextField("Орган, осуществляющий поверку / Иная инф.", blank=True, null=True)
-    data_poverk = models.DateField("Дата последней поверки (месяц/год)", blank=True, null=True)
-    srok_poverk = models.DateField("Сроки проведения поверки (месяц/год)", blank=True, null=True)
+    data_poverk = models.DateField("Дата последней поверки (месяц/год)", blank=True, null=True, default=None)
+    srok_poverk = models.DateField("Сроки проведения поверки (месяц/год)", blank=True, null=True, default=None)
     other = models.TextField("Примечание", blank=True, null=True)
 
     def get_name(self):
@@ -35,19 +36,16 @@ class Equipment(models.Model):
         verbose_name_plural = "Оборудование"
         ordering = ['-id']
         indexes = [
-            models.Index(fields=['equipment_type']),
-            models.Index(fields=['name']),
-            models.Index(fields=['srok_poverk'])
+            models.Index(fields=['equipment_type', 'name']),
+            models.Index(fields=['srok_poverk']),
         ]
+    
     
     @property
     def days_between_poverk(self):
-        if self.srok_poverk and isinstance(self.srok_poverk, date):
-            try:
-                today = date.today()
-                return (self.srok_poverk - today).days
-            except Exception:
-                return None
+        """Возвращает количество дней до следующей поверки"""
+        if self.srok_poverk:
+            return (self.srok_poverk - localdate()).days
         return None
     
     @property

@@ -101,6 +101,41 @@ class EquipmentGroupForm(forms.ModelForm):
         return instance
 
 class EquipmentGroupForm(forms.ModelForm):
+    # Поля для разных типов оборудования
+    measurement_tools = forms.ModelMultipleChoiceField(
+        queryset=Equipment.objects.filter(equipment_type='СИ'),
+        label="Средства измерения",
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control select2',
+            'data-placeholder': 'Выберите средства измерения',
+            'data-allow-clear': 'true'
+        })
+    )
+
+    testing_equipment = forms.ModelMultipleChoiceField(
+        queryset=Equipment.objects.filter(equipment_type='ИО'),
+        label="Испытательное оборудование",
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control select2',
+            'data-placeholder': 'Выберите испытательное оборудование',
+            'data-allow-clear': 'true'
+        })
+    )
+
+    auxiliary_equipment = forms.ModelMultipleChoiceField(
+        queryset=Equipment.objects.filter(equipment_type='ВО'),
+        label="Вспомогательное оборудование",
+        required=False,
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control select2',
+            'data-placeholder': 'Выберите вспомогательное оборудование',
+            'data-allow-clear': 'true'
+        })
+    )
+
+    # Поле для условий
     conditions = forms.CharField(
         widget=forms.HiddenInput(),
         required=False,
@@ -109,17 +144,27 @@ class EquipmentGroupForm(forms.ModelForm):
 
     class Meta:
         model = EquipmentGroup
-        fields = ['name', 'equipment', 'conditions']
+        fields = ['name', 'description', 'conditions']
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Введите название группы'
             }),
-            'equipment': forms.SelectMultiple(attrs={
-                'class': 'form-control select2',
-                'data-placeholder': 'Выберите оборудование'
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Введите описание группы'
             })
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        instance = kwargs.get('instance')
+        if instance:
+            # Заполняем начальные значения для существующей группы
+            self.initial['measurement_tools'] = instance.equipment.filter(equipment_type='СИ')
+            self.initial['testing_equipment'] = instance.equipment.filter(equipment_type='ИО')
+            self.initial['auxiliary_equipment'] = instance.equipment.filter(equipment_type='ВО')
 
     def clean_conditions(self):
         data = self.cleaned_data['conditions']
@@ -141,15 +186,34 @@ class EquipmentGroupForm(forms.ModelForm):
             return conditions
         except json.JSONDecodeError:
             return []
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+            # Очищаем существующие связи
+            instance.equipment.clear()
+            
+            # Добавляем оборудование каждого типа
+            for field_name in ['measurement_tools', 'testing_equipment', 'auxiliary_equipment']:
+                equipment = self.cleaned_data.get(field_name)
+                if equipment:
+                    instance.equipment.add(*equipment)
+                    
+        return instance
         
 class CSVImportForm(forms.Form):
     csv_file = forms.FileField(
         label='Выберите файл',
-        widget=forms.FileInput(attrs={
-            'class': 'form-control',
-            'accept': '.csv,.xlsx,.xls'
-        }),
+        widget=forms.FileInput(attrs={'class': 'form-control', 'accept': '.csv,.xlsx,.xls'}),
         help_text='Поддерживаемые форматы: CSV, Excel (xlsx, xls)'
     )
+
+    def clean_csv_file(self):
+        file = self.cleaned_data.get('csv_file')
+        if file:
+            max_size = 5 * 1024 * 1024  # 5MB
+            if file.size > max_size:
+                raise forms.ValidationError("Размер файла не должен превышать 5MB.")
+        return file
         
-    
