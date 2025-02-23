@@ -32,17 +32,21 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
         },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': '/var/log/gunicorn/django-debug.log',
+        },
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
         },
     },
 }
 
 DEBUG = bool( os.environ.get('DJANGO_DEBUG', True) )
-#ALLOWED_HOSTS = ['stelmakh3.commerce.fvds.ru']
+ALLOWED_HOSTS = ['stelmakh3.commerce.fvds.ru', 'localhost', '127.0.0.1']
 #ALLOWED_HOSTS = []
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
@@ -50,7 +54,9 @@ CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
-
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
@@ -116,7 +122,7 @@ WSGI_APPLICATION = 'auto_testing.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# https://docs.djangoproject.com/en/
 
 DATABASES = {
     'default': {
@@ -124,7 +130,7 @@ DATABASES = {
         'NAME': 'auto_testing_db',
         'USER': 'auto_admin',
         'PASSWORD': 'testAuto2024!',
-        'HOST': 'localhost',
+        'HOST': 'localhost',  # было 'db', меняем на 'localhost'
         'PORT': '5432',
     }
 }
@@ -156,8 +162,6 @@ LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Europe/Moscow'
 
-TIME_ZONE = 'UTC'
-
 USE_I18N = True
 
 USE_TZ = True
@@ -172,7 +176,7 @@ PROTOCOL_TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates', 'reports')
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'core', 'static'),
+    os.path.join(BASE_DIR, 'core/static/core'),
 ]
 
 MEDIA_URL = '/media/'

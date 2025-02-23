@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: auto_admin
+      POSTGRES_PASSWORD: testAuto2024!
+      POSTGRES_DB: auto_testing_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    command: gunicorn auto_testing.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
