@@ -247,3 +247,5 @@ def generate_pdf(docx_path):
     except Exception as e:
         print(f"Ошибка при конвертации в PDF: {str(e)}")
         raise
+
+    

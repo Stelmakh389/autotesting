@@ -25,79 +25,67 @@
         {% endif %}
 
         {% if group.equipment.exists %}
-                    <!-- Средства измерения -->
-                    <div class="mb-4">
-                        <h5>Средства измерения (СИ)</h5>
-                        
-                            {% if si_equipment %}
-                                <div class="list-group">
-                                    {% for item in si_equipment %}
-                                        <div class="list-group-item">
-                                            <div class="d-flex w-100 justify-content-between">
-                                                <h6 class="mb-1">{{ item.name }}</h6>
-                                                {% if item.srok_poverk %}
-                                                    <small class="text-{{ item.poverk_status }}">
-                                                        До поверки: {{ item.days_between_poverk }} дн.
-                                                    </small>
-                                                {% endif %}
-                                            </div>
-                                            {% if item.zav_nomer %}
-                                                <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
+            <!-- Средства измерения -->
+            <div class="mb-4">
+                <h5 class="mb-3">Средства измерения (СИ)</h5>
+                {% if si_equipment %}
+                    <div class="list-group">
+                        {% for item in si_equipment %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ item.name }} {{ item.tip|default:"" }}</h6>
                                 </div>
-                            {% else %}
-                                <p class="text-muted">Нет средств измерения</p>
-                            {% endif %}
-                        
+                                {% if item.zav_nomer %}
+                                    <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
                     </div>
-
-                    <!-- Испытательное оборудование -->
-                    <div class="mb-4">
-                        <h5>Испытательное оборудование (ИО)</h5>
-                        
-                            {% if io_equipment %}
-                                <div class="list-group">
-                                    {% for item in io_equipment %}
-                                        <div class="list-group-item">
-                                            <h6 class="mb-1">{{ item.name }}</h6>
-                                            {% if item.zav_nomer %}
-                                                <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <p class="text-muted">Нет испытательного оборудования</p>
-                            {% endif %}
-                        
-                    </div>
-
-                    <!-- Вспомогательное оборудование -->
-                    <div class="mb-4">
-                        <h5>Вспомогательное оборудование (ВО)</h5>
-                        
-                            {% if vo_equipment %}
-                                <div class="list-group">
-                                    {% for item in vo_equipment %}
-                                        <div class="list-group-item">
-                                            <h6 class="mb-1">{{ item.name }}</h6>
-                                            {% if item.zav_nomer %}
-                                                <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <p class="text-muted">Нет вспомогательного оборудования</p>
-                            {% endif %}
-                        
-                    </div>
-                    
                 {% else %}
-                    <p class="text-muted">В данной группе нет оборудования</p>
+                    <p class="text-muted">Нет средств измерения</p>
                 {% endif %}
+            </div>
+
+            <!-- Испытательное оборудование -->
+            <div class="mb-4">
+                <h5 class="mb-3">Испытательное оборудование (ИО)</h5>
+                {% if io_equipment %}
+                    <div class="list-group">
+                        {% for item in io_equipment %}
+                            <div class="list-group-item">
+                                <h6 class="mb-1">{{ item.name }} {{ item.tip|default:"" }}</h6>
+                                {% if item.zav_nomer %}
+                                    <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Нет испытательного оборудования</p>
+                {% endif %}
+            </div>
+
+            <!-- Вспомогательное оборудование -->
+            <div class="mb-4">
+                <h5 class="mb-3">Вспомогательное оборудование (ВО)</h5>
+                {% if vo_equipment %}
+                    <div class="list-group">
+                        {% for item in vo_equipment %}
+                            <div class="list-group-item">
+                                <h6 class="mb-1">{{ item.name }} {{ item.tip|default:"" }}</h6>
+                                {% if item.zav_nomer %}
+                                    <small class="text-muted">Зав. №: {{ item.zav_nomer }}</small>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Нет вспомогательного оборудования</p>
+                {% endif %}
+            </div>
+        {% else %}
+            <p class="text-muted">В данной группе нет оборудования</p>
+        {% endif %}
 
         <!-- Условия отображения -->
         <div class="card">
@@ -118,21 +106,7 @@
                             <tbody>
                                 {% for condition in group.conditions %}
                                 <tr>
-                                    <td>
-                                        {% if condition.field == 'engine_volume' %}
-                                            Объем двигателя
-                                        {% elif condition.field == 'engine_power' %}
-                                            Мощность двигателя
-                                        {% elif condition.field == 'fuel_type' %}
-                                            Тип топлива
-                                        {% elif condition.field == 'max_mass' %}
-                                            Максимальная масса
-                                        {% elif condition.field == 'unladen_mass' %}
-                                            Масса без нагрузки
-                                        {% else %}
-                                            {{ condition.field }}
-                                        {% endif %}
-                                    </td>
+                                    <td>{{ condition.field_verbose }}</td> <!-- Должно быть field_verbose -->
                                     <td>
                                         {% if condition.operator == '=' %}
                                             равно
@@ -161,9 +135,13 @@
                                             {% endif %}
                                         {% else %}
                                             {{ condition.value }}
-                                            {% if condition.field == 'engine_volume' %}л{% endif %}
-                                            {% if condition.field == 'engine_power' %}л.с.{% endif %}
-                                            {% if condition.field == 'max_mass' or condition.field == 'unladen_mass' %}кг{% endif %}
+                                            {% if condition.field == 'engine_volume' %}
+                                                л
+                                            {% elif condition.field == 'engine_power' %}
+                                                л.с.
+                                            {% elif condition.field == 'max_mass' or condition.field == 'unladen_mass' %}
+                                                кг
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>

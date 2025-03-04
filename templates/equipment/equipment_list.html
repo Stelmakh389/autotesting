@@ -1,6 +1,7 @@
 <!--Equipment List--> 
 {% extends 'base.html' %}
 {% load equipment_filters %}
+{% load static %}
 
 {% block title %}{{ equipment_type_name }}{% endblock %}
 {% block content %}
@@ -13,7 +14,7 @@
    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3">
        <h1 class="mb-2 mb-md-0">{{ equipment_type_name }}</h1>
    </div>
-   <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3">  
+   <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 mb-3">  
     {% include 'includes/search.html' %}
     <div class="group_buttons">
         <button class="create_btn btn btn-primary">Добавить элемент</button>
@@ -21,25 +22,11 @@
             <i class="fas fa-ellipsis-v"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
-            <li type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#columnSettingsModal">
-                <i class="fas fa-columns"></i> Настройки столбцов
-            </li>
-            <li>
-                <a class="dropdown-item" href="{% url 'equipment:export' %}">
-                    <i class="fas fa-file-export"></i> Экспорт в XLSX
-                </a>
-            </li>
-            <li>
-                <a class="dropdown-item" href="{% url 'equipment:import' %}">
-                    <i class="fas fa-file-import"></i> Импорт из CSV, XLSX, XLS
-                </a>
-            </li>
+            <li type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#columnSettingsModal"><i class="fas fa-columns"></i> Настройки столбцов</li>
+            <li><a class="dropdown-item" href="{% url 'equipment:export' %}"><i class="fas fa-file-export"></i> Экспорт</a></li>
+            <li><a class="dropdown-item" href="{% url 'equipment:import' %}"><i class="fas fa-file-import"></i> Импорт</a></li>
             <li><hr class="dropdown-divider"></li>
-            <li>
-                <a href="#" onclick="confirmDelete('{% url 'equipment:delete-all' %}', 'all', 'все записи'); return false;" class="dropdown-item text-danger">
-                    <i class="fas fa-trash"></i> Удалить все
-                </a>
-            </li>
+            <li><a href="#" onclick="confirmDelete('{% url 'equipment:delete-all' %}', 'all', 'все записи'); return false;" class="dropdown-item text-danger"><i class="fas fa-trash"></i> Удалить все</a></li>
         </ul>
     </div>
    </div>
@@ -56,11 +43,16 @@
                     {% endif %}
                 </button>
                 <ul class="dropdown-menu" style="max-height: 500px; overflow-y: auto;">
-                    <li><a class="dropdown-item {% if not current_filters|get_item:column %}active{% endif %}" style="max-width: 500px;" href="?">Все</a></li>
+                    <li>
+                        <a class="dropdown-item {% if not current_filters|get_item:column %}active{% endif %}" 
+                           href="?{% for key, value in request.GET.items %}{% if key != column %}{{ key }}={{ value }}&{% endif %}{% endfor %}">
+                            Все
+                        </a>
+                    </li>
                     {% for value in filters|get_item:column %}
-                        <li style="max-width: 500px;">
+                        <li>
                             <a class="dropdown-item {% if current_filters|get_item:column == value|stringformat:'s' %}active{% endif %}" 
-                            href="?{% if request.GET.type %}type={{ request.GET.type }}&{% endif %}{{ column }}={{ value|urlencode }}">
+                               href="?{% for key, value2 in request.GET.items %}{% if key != column %}{{ key }}={{ value2 }}&{% endif %}{% endfor %}{{ column }}={{ value|urlencode }}">
                                 {{ value }}
                             </a>
                         </li>
@@ -72,39 +64,28 @@
     </div>
 
    {% if equipment_list %}
-   <style>
-       .table td {
-           max-height: 40px;
-           line-height: 40px;
-           padding: 0 8px;
-           max-width: 150px;
-       }
-       .table td a {
-           display: block;
-           overflow: hidden;
-           text-overflow: ellipsis;
-           white-space: nowrap;
-       }
-   </style>
+   
                    
    <div class="table-responsive">
-       <table class="table">
+       <table id="overflowSample" class="table">
         <thead>
             <tr>
-                <th>
-                    <input type="checkbox" id="selectAll" class="form-check-input">
-                </th>
+                <th width="40"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                <th width="40">#</th>
                 {% for column in selected_columns %}
                 <th>
                     <div class="btn-group btn-group-sm">
-                        <!-- Название столбца -->
-                        <a href="?sort={{ column }}&order={% if request.GET.sort == column and request.GET.order == 'asc' %}desc{% else %}asc{% endif %}" 
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'sort' and key != 'order' %}{{ key }}={{ value }}&{% endif %}{% endfor %}sort={{ column }}&order={% if request.GET.sort == column and request.GET.order == 'asc' %}desc{% else %}asc{% endif %}" 
                            class="btn btn-sm">
                             {{ available_columns|get_item:column }}
-                            <i class="fas {% if request.GET.sort == column and request.GET.order == 'asc' %}fa-arrow-up{% else %}fa-arrow-down{% endif %}"></i>
+                            {% if request.GET.sort == column %}
+                                <i class="fas {% if request.GET.order == 'asc' %}fa-arrow-up{% else %}fa-arrow-down{% endif %}"></i>
+                            {% else %}
+                                <i class="fas fa-sort"></i>
+                            {% endif %}
                         </a>
                     </div>
-                </th>                
+                </th>             
                 {% endfor %}
                 <th>Действия</th>
             </tr>
@@ -112,15 +93,18 @@
            <tbody>
                {% for item in equipment_list %}
                <tr>
-                    <td>
+                    <td class="check_col">
                         <input type="checkbox" name="selected_items" value="{{ item.pk }}" class="form-check-input item-checkbox">
                     </td>
-                   {% for column in selected_columns %}
+                    <td class="numer">{{ forloop.counter|add:page_obj.start_index|add:"-1" }}</td>
+                    {% for column in selected_columns %}
                         <td><a class="view-btn" data-id="{{ item.pk }}">
-                            {% if column == 'days_until_verification' %}
-                                {{ item.days_until_verification }} дн.
+                            {% if column == 'days_between_poverk' %}
+                                {% if item.days_between_poverk != None %}
+                                    {{ item.days_between_poverk }} дн.
+                                {% endif %}
                             {% else %}
-                                {{ item|get_attr:column }}
+                                {{ item|get_attr:column|default:"" }}
                             {% endif %}
                         </td></a>
                     {% endfor %}
@@ -155,16 +139,18 @@
    {% endif %}
 </div>
 {% endblock %}
-
+<script src="{% static 'core/js/resizecolumnsave.js' %}"></script>
 {% block extra_js %}
 {{ block.super }}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Инициализация модального окна удаления
-    const modalElement = document.getElementById('deleteConfirmationModal');
-    if (modalElement) {
-        window.deleteModal = new bootstrap.Modal(modalElement);
-    }
-});
+    $("#overflowSample").colResizable({resizeMode:'overflow'});
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Инициализация модального окна удаления
+        const modalElement = document.getElementById('deleteConfirmationModal');
+        if (modalElement) {
+            window.deleteModal = new bootstrap.Modal(modalElement);
+        }
+    });
 </script>
 {% endblock %}

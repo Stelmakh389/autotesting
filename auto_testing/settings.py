@@ -30,33 +30,32 @@ LOGGING = {
     'disable_existing_loggers': False,
     'handlers': {
         'console': {
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': '/var/log/gunicorn/django-debug.log',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console'],
             'level': 'DEBUG',
+            'propagate': True,
         },
     },
 }
 
-DEBUG = bool( os.environ.get('DJANGO_DEBUG', True) )
-ALLOWED_HOSTS = ['stelmakh3.commerce.fvds.ru', 'localhost', '127.0.0.1']
-#ALLOWED_HOSTS = []
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-USE_X_FORWARDED_HOST = True
-USE_X_FORWARDED_PORT = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+#DEBUG = bool( os.environ.get('DJANGO_DEBUG', True) )
+DEBUG = True
+#ALLOWED_HOSTS = ['stelmakh3.commerce.fvds.ru', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+#SECURE_SSL_REDIRECT = True
+#SESSION_COOKIE_SECURE = True
+#CSRF_COOKIE_SECURE = True
+#SECURE_HSTS_SECONDS = 31536000
+#SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+#SECURE_HSTS_PRELOAD = True
+#USE_X_FORWARDED_HOST = True
+#USE_X_FORWARDED_PORT = True
+#SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
@@ -130,7 +129,7 @@ DATABASES = {
         'NAME': 'auto_testing_db',
         'USER': 'auto_admin',
         'PASSWORD': 'testAuto2024!',
-        'HOST': 'localhost',  # было 'db', меняем на 'localhost'
+        'HOST': 'db',
         'PORT': '5432',
     }
 }

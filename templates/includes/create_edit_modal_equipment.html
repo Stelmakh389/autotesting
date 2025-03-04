@@ -9,12 +9,10 @@
                 <form id="equipmentForm" method="post" novalidate>
                     {% csrf_token %}
                     
-                    {% if form.errors %}
-                        <div class="alert alert-danger">
-                            <h5>Пожалуйста, исправьте следующие ошибки:</h5>
-                            {{ form.errors }}
-                        </div>
-                    {% endif %}
+                    <div id="formErrors" class="alert alert-danger" style="display: none;">
+                        <h5>Пожалуйста, исправьте следующие ошибки:</h5>
+                        <ul id="errorList"></ul>
+                    </div>
 
                     <div class="row">
                         <!-- Левая колонка -->
@@ -57,9 +55,22 @@
     document.addEventListener('DOMContentLoaded', function() {
     const modal = new bootstrap.Modal(document.getElementById('equipmentFormModal'));
     const form = document.getElementById('equipmentForm');
+    const formErrors = document.getElementById('formErrors');
+    const errorList = document.getElementById('errorList');
+
+    // Функция очистки ошибок
+    function clearErrors() {
+        formErrors.style.display = 'none';
+        errorList.innerHTML = '';
+        form.querySelectorAll('.is-invalid').forEach(field => {
+            field.classList.remove('is-invalid');
+            field.nextElementSibling.textContent = '';
+        });
+    }
 
     // Открытие модального окна для создания
     document.querySelector('.create_btn').addEventListener('click', function() {
+        clearErrors();
         document.getElementById('modalTitle').textContent = 'Создать элемент оборудования';
         form.reset();
         form.dataset.mode = 'create';
@@ -69,8 +80,8 @@
     // Обработка редактирования
     document.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', function() {
+            clearErrors();
             const itemId = this.dataset.id;
-            console.log('Edit button clicked for item:', itemId);
             
             document.getElementById('modalTitle').textContent = 'Редактировать элемент';
             form.dataset.mode = 'edit';
@@ -83,7 +94,6 @@
             })
             .then(response => response.json())
             .then(data => {
-                console.log('Received data:', data);
                 if (data.status === 'success') {
                     Object.keys(data.data).forEach(field => {
                         const input = form.querySelector(`[name="${field}"]`);
@@ -100,6 +110,7 @@
 
     // Обработка сохранения
     document.getElementById('saveEquipment').addEventListener('click', function() {
+        clearErrors();
         const formData = new FormData(form);
         const url = form.dataset.mode === 'create' 
             ? '{% url "equipment:create" %}'
@@ -113,28 +124,128 @@
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => {
-            const contentType = response.headers.get('content-type');
-            if (contentType && contentType.includes('application/json')) {
-                return response.json();
-            }
-            throw new Error('Server response was not JSON');
-        })
+        .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
                 modal.hide();
                 window.location.reload();
-            } else {
-                // Показ ошибок валидации
+            } else if (data.errors) {
+                // Показываем общий блок с ошибками
+                formErrors.style.display = 'block';
+                
+                // Очищаем старые ошибки
+                errorList.innerHTML = '';
+                
+                // Обработка ошибок для каждого поля
                 Object.keys(data.errors).forEach(field => {
-                    const input = document.getElementById(`id_${field}`);
+                    const input = form.querySelector(`[name="${field}"]`);
                     if (input) {
                         input.classList.add('is-invalid');
-                        input.nextElementSibling.textContent = data.errors[field][0];
+                        const feedbackElement = input.nextElementSibling;
+                        if (feedbackElement) {
+                            feedbackElement.textContent = data.errors[field].join(', ');
+                        }
+                        
+                        // Добавляем ошибку в общий список
+                        const errorItem = document.createElement('li');
+                        errorItem.textContent = `${field}: ${data.errors[field].join(', ')}`;
+                        errorList.appendChild(errorItem);
                     }
                 });
             }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            formErrors.style.display = 'block';
+            errorList.innerHTML = '<li>Произошла ошибка при сохранении</li>';
         });
     });
+
+    // Очистка ошибок при закрытии модального окна
+    modal._element.addEventListener('hidden.bs.modal', clearErrors);
 });
+</script>
+<script>
+    // Валидация формы на стороне клиента
+    (function () {
+        'use strict'
+        var forms = document.querySelectorAll('.needs-validation')
+        Array.prototype.slice.call(forms).forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                }
+                form.classList.add('was-validated')
+            }, false)
+        })
+    })()
+</script>
+<script>
+    // Функция для подсветки пустых полей и добавления предупреждений
+    document.addEventListener('DOMContentLoaded', function() {
+        // Проверяем, является ли текущая страница страницей редактирования или копирования
+        const isDuplicate = {% if is_duplicate %}true{% else %}false{% endif %};
+        const isEditMode = {% if is_edit_mode %}true{% else %}false{% endif %};
+        
+        // Если это копирование, добавляем предупреждение вверху формы
+        if (isDuplicate) {
+            const formHeader = document.querySelector('.card-header');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-warning reminder-alert';
+            alertDiv.innerHTML = `
+                <strong>Внимание!</strong> Вы редактируете копию автомобиля. 
+                Пожалуйста, обратите особое внимание на выделенные поля и убедитесь, 
+                что все данные заполнены корректно, особенно VIN номер, пробег, даты и информация об изготовителе и заказчике.
+            `;
+            formHeader.after(alertDiv);
+        }
+        
+        // Обрабатываем поля только в режиме редактирования
+        if (isEditMode) {
+            // Находим все пустые поля и поля, требующие внимания после копирования
+            const emptyFields = document.querySelectorAll('[data-empty="true"]');
+            const importantFields = document.querySelectorAll('[data-important="true"]');
+            
+            // Выделяем метки пустых полей
+            emptyFields.forEach(field => {
+                // Находим соответствующую метку (label)
+                const fieldId = field.id;
+                const label = document.querySelector(`label[for="${fieldId}"]`);
+                if (label) {
+                    label.classList.add('label-highlight');
+                    
+                    // Добавляем маркер "Требуется заполнить"
+                    const fieldContainer = field.closest('.mb-3');
+                    if (fieldContainer) {
+                        const marker = document.createElement('div');
+                        marker.className = 'empty-field-marker';
+                        marker.textContent = 'Требуется заполнить';
+                        fieldContainer.appendChild(marker);
+                    }
+                }
+            });
+            
+            // Выделяем метки важных полей после копирования
+            if (isDuplicate) {
+                importantFields.forEach(field => {
+                    // Находим соответствующую метку (label)
+                    const fieldId = field.id;
+                    const label = document.querySelector(`label[for="${fieldId}"]`);
+                    if (label) {
+                        label.classList.add('label-highlight-important');
+                        
+                        // Добавляем маркер "Требует проверки"
+                        const fieldContainer = field.closest('.mb-3');
+                        if (fieldContainer) {
+                            const marker = document.createElement('div');
+                            marker.className = 'important-field-marker';
+                            marker.textContent = 'Требует проверки после копирования';
+                            fieldContainer.appendChild(marker);
+                        }
+                    }
+                });
+            }
+        }
+    });
 </script>

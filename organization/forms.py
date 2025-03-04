@@ -21,4 +21,5 @@ class OrganizationForm(forms.ModelForm):
             'phone': forms.TextInput(attrs={'class': 'form-control'}),
             'website': forms.TextInput(attrs={'class': 'form-control'}),
             'accreditation_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'fio_director': forms.TextInput(attrs={'class': 'form-control'}),
         }

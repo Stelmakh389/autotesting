@@ -2,6 +2,7 @@ from django.db import models
 
 # core/models/organization.py
 class Organization(models.Model):
+    fio_director = models.CharField("ФИО руководителя лаборатории", max_length=255, blank=True, null=True)
     name = models.CharField("Название организации полное", max_length=255, blank=True, null=True)
     shortname = models.CharField("Название организации сокращенное", max_length=255, blank=True, null=True)
     inn = models.CharField("ИНН", max_length=12, blank=True, null=True)

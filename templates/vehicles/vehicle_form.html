@@ -17,59 +17,130 @@
             <!-- Данные заказчика -->
             <div class="row mb-4">
                 <h4 class="mb-4">Данные заказчика</h4>
-                <div class="col-md-6">
+                <div class="row">
                     {% for field in customer_form.visible_fields %}
-                        {% if forloop.counter|divisibleby:2 %}
+                        {% if forloop.counter0 == 0 %}
                             <div class="mb-3">{{ field|as_crispy_field }}</div>
                         {% endif %}
                     {% endfor %}
                 </div>
-                <div class="col-md-6">
+                <div class="row">
                     {% for field in customer_form.visible_fields %}
-                        {% if not forloop.counter|divisibleby:2 %}
-                            <div class="mb-3">{{ field|as_crispy_field }}</div>
+                        {% if forloop.counter0 > 0 and forloop.counter0 < 4 %}
+                            <div class="col-md-4">
+                                <div class="mb-3">{{ field|as_crispy_field }}</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="row">
+                    {% for field in customer_form.visible_fields %}
+                        {% if forloop.counter0 >= 4 %}
+                            <div class="col-md-6">
+                                <div class="mb-3">{{ field|as_crispy_field }}</div>
+                            </div>
                         {% endif %}
                     {% endfor %}
                 </div>
             </div>
-            <div class="border-top border-secondary mb-5"></div>
+            <div class="border-top border-secondary"></div>
             <!-- Данные испытаний -->
-            <div class="row mb-4">
-                <h4 class="mb-4">Данные испытаний</h4>
-                <div class="col-md-6">
-                    {% for field in test_form.visible_fields %}
-                        {% if forloop.counter|divisibleby:2 %}
-                            <div class="mb-3">{{ field|as_crispy_field }}</div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-                <div class="col-md-6">
-                    {% for field in test_form.visible_fields %}
-                        {% if not forloop.counter|divisibleby:2 %}
-                            <div class="mb-3">{{ field|as_crispy_field }}</div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="border-top border-secondary mb-3"></div>
             <div class="row">
                 <h4 class="mb-4 mt-5">Характеристики авто</h4>
-                <div class="col-md-6">
+            
+                <!-- Основные поля (по 4 колонки) -->
+                <div class="row">
                     {% for field in form.visible_fields %}
-                        {% if forloop.counter|divisibleby:2 %}
-                            <div class="mb-3">{{ field|as_crispy_field }}</div>
+                        {% if forloop.revcounter > 3 %}  
+                            <div class="col-md-3">
+                                <div class="mb-3">{{ field|as_crispy_field }}</div>
+                            </div>
                         {% endif %}
                     {% endfor %}
                 </div>
-                <div class="col-md-6">
+            
+                <!-- Последние 3 поля (в одной строке по 3 колонки) -->
+                <div class="row mt-3">
                     {% for field in form.visible_fields %}
-                        {% if not forloop.counter|divisibleby:2 %}
+                        {% if forloop.revcounter <= 3 %}
+                            <div class="col-md-4">
+                                <div class="mb-3">{{ field|as_crispy_field }}</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            
+            </div>
+            <div class="border-top border-secondary my-5"></div>
+            <div class="row mb-4">
+                <h4 class="mb-4">Данные испытаний</h4>
+                <!-- Первая строка - 2 поля -->
+                <div class="row">
+                    {% for field in test_form.visible_fields %}
+                        {% if forloop.counter0 < 2 %}
+                            <div class="col-md-6">
+                                <div class="mb-3">{{ field|as_crispy_field }}</div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <!-- Вторая строка - 4 колонки -->
+                <div class="row my-3">
+                    <!-- Первая колонка - 3 поля -->
+                    <div class="col-md-3">
+                        <div class="border p-3 rounded">
+                            {% for field in test_form.visible_fields %}
+                                {% if forloop.counter0 >= 2 and forloop.counter0 < 5 %}
+                                    <div class="mb-3">{{ field|as_crispy_field }}</div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Вторая колонка - 3 поля -->
+                    <div class="col-md-3">
+                        <div class="border p-3 rounded">
+                            {% for field in test_form.visible_fields %}
+                                {% if forloop.counter0 >= 5 and forloop.counter0 < 8 %}
+                                    <div class="mb-3">{{ field|as_crispy_field }}</div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Третья колонка - 3 поля -->
+                    <div class="col-md-3">
+                        <div class="border p-3 rounded">
+                            {% for field in test_form.visible_fields %}
+                                {% if forloop.counter0 >= 8 and forloop.counter0 < 11 %}
+                                    <div class="mb-3">{{ field|as_crispy_field }}</div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <!-- Четвертая колонка - 4 поля -->
+                    <div class="col-md-3">
+                        <div class="border p-3 rounded">
+                            {% for field in test_form.visible_fields %}
+                                {% if forloop.counter0 >= 11 and forloop.counter0 < 15 %}
+                                    <div class="mb-3">{{ field|as_crispy_field }}</div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Третья строка - 1 поле -->
+                <div class="row">
+                    {% for field in test_form.visible_fields %}
+                        {% if forloop.counter0 == 15 %}
                             <div class="mb-3">{{ field|as_crispy_field }}</div>
                         {% endif %}
                     {% endfor %}
                 </div>
             </div>
-
             <div class="card mb-3">
                 <div class="card-header bg-light">
                     <h5 class="mb-0">Фотографии</h5>

@@ -16,16 +16,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Инициализация переменных
-    const selectAllCheckbox = document.getElementById('select-all');
+    const selectAllCheckbox = document.getElementById('selectAll');
     const itemCheckboxes = document.querySelectorAll('.item-checkbox');
-    const bulkDeleteButton = document.getElementById('bulk-delete');
+    const bulkActions = document.querySelector('.bulk-actions');
+    const bulkDuplicateBtn = document.getElementById('bulkDuplicate');
     const csrfToken = getCookie('csrftoken');
 
-    // Функция обновления состояния кнопки удаления
-    function updateBulkDeleteButton() {
-        const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
-        if (bulkDeleteButton) {
-            bulkDeleteButton.disabled = checkedBoxes.length === 0;
+    // Функция обновления видимости панели массовых действий
+    function updateBulkActionsVisibility() {
+        if (bulkActions) {
+            const hasSelectedItems = [...itemCheckboxes].some(cb => cb.checked);
+            bulkActions.style.display = hasSelectedItems ? 'flex' : 'none';
         }
     }
 
@@ -35,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
             itemCheckboxes.forEach(checkbox => {
                 checkbox.checked = this.checked;
             });
-            updateBulkDeleteButton();
+            updateBulkActionsVisibility();
         });
     }
 
@@ -50,83 +51,113 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectAllCheckbox.indeterminate = someChecked && !allChecked;
             }
             
-            updateBulkDeleteButton();
+            updateBulkActionsVisibility();
         });
     });
 
-    // Обработчик массового удаления
-    if (bulkDeleteButton) {
-        bulkDeleteButton.addEventListener('click', function() {
-            const checkedBoxes = document.querySelectorAll('.item-checkbox:checked');
-            const selectedIds = Array.from(checkedBoxes).map(cb => cb.value);
-
-            if (selectedIds.length === 0) {
-                alert('Выберите элементы для удаления');
-                return;
-            }
-
-            if (confirm('Вы уверены, что хотите удалить выбранные элементы?')) {
-                fetch('/equipment/bulk-delete/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({
-                        ids: selectedIds
-                    })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.status === 'success') {
-                        window.location.reload();
-                    } else {
-                        throw new Error(data.message || 'Ошибка при удалении');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Произошла ошибка при удалении элементов');
-                });
-            }
-        });
-    }
-
-    // Обработчик копирования оборудования
-    document.querySelectorAll('.copy-equipment').forEach(button => {
+    // Обработчик для одиночного копирования
+    document.querySelectorAll('[data-action="duplicate"]').forEach(button => {
         button.addEventListener('click', function(e) {
             e.preventDefault();
-            const equipmentId = this.dataset.id;
+            const vehicleId = this.getAttribute('href').split('/').filter(Boolean).pop();
 
-            fetch(`/equipment/${equipmentId}/copy/`, {
+            fetch(`/vehicles/duplicate/${vehicleId}/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken
-                }
+                },
+                credentials: 'same-origin'
             })
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                return response.json();
+                window.location.reload();
             })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Произошла ошибка при копировании автомобиля');
+            });
+        });
+    });
+
+    // Обработчик для массового копирования
+    if (bulkDuplicateBtn) {
+        bulkDuplicateBtn.addEventListener('click', function() {
+            const selectedIds = [...document.querySelectorAll('.item-checkbox:checked')]
+                .map(cb => cb.value);
+            
+            if (selectedIds.length === 0) {
+                alert('Пожалуйста, выберите элементы для копирования');
+                return;
+            }
+            
+            if (confirm(`Вы уверены, что хотите скопировать ${selectedIds.length} элементов?`)) {
+                fetch('/vehicles/bulk-duplicate/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ ids: selectedIds }),
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        window.location.reload();
+                    } else {
+                        let errorMessage = data.message;
+                        if (data.errors && data.errors.length > 0) {
+                            errorMessage += '\n\n' + data.errors.join('\n');
+                        }
+                        alert(errorMessage);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Произошла ошибка при копировании');
+                });
+            }
+        });
+    }
+
+    // Обработчик массового удаления
+    document.querySelector('[data-action="bulk-delete"]')?.addEventListener('click', function() {
+        const selectedIds = [...document.querySelectorAll('.item-checkbox:checked')]
+            .map(cb => cb.value);
+
+        if (selectedIds.length === 0) {
+            alert('Выберите элементы для удаления');
+            return;
+        }
+
+        if (confirm('Вы уверены, что хотите удалить выбранные элементы?')) {
+            fetch('/vehicles/bulk-delete/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ ids: selectedIds }),
+                credentials: 'same-origin'
+            })
+            .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
                     window.location.reload();
                 } else {
-                    throw new Error(data.message || 'Ошибка при копировании');
+                    throw new Error(data.message || 'Ошибка при удалении');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Произошла ошибка при копировании оборудования');
+                alert('Произошла ошибка при удалении элементов');
             });
-        });
+        }
     });
+
+    // Инициализация начального состояния
+    updateBulkActionsVisibility();
 });

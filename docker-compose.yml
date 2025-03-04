@@ -5,16 +5,23 @@ services:
       POSTGRES_USER: auto_admin
       POSTGRES_PASSWORD: testAuto2024!
       POSTGRES_DB: auto_testing_db
+      DEBUG: True
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   web:
     build: .
-    command: gunicorn auto_testing.wsgi:application --bind 0.0.0.0:8000
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
-      - "8000:8000"
+      - "8001:8000"
+    environment:
+      - DJANGO_DEBUG=True
+      - DATABASE_URL=postgres://auto_admin:testAuto2024!@db:5432/auto_testing_db
+      - LIBREOFFICE_PATH=/usr/lib/libreoffice
     depends_on:
       - db
 

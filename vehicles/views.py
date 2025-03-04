@@ -14,6 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from utils.document_generators import generate_protocols
 import json
+from django.urls import reverse_lazy, reverse
 
 class VehicleListView(LoginRequiredMixin, ListView):
     model = Vehicle
@@ -175,14 +176,38 @@ class VehicleCreateView(LoginRequiredMixin, CreateView):
     template_name = 'vehicles/vehicle_form.html'
     success_url = reverse_lazy('vehicles:list')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # При создании не используем флаги is_duplicate и is_edit_mode
+        kwargs['is_duplicate'] = False
+        kwargs['is_edit_mode'] = False
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if self.request.POST:
-            context['test_form'] = TestDataForm(self.request.POST)
-            context['customer_form'] = CustomerDataForm(self.request.POST)
+            context['test_form'] = TestDataForm(
+                self.request.POST,
+                is_duplicate=False,
+                is_edit_mode=False
+            )
+            context['customer_form'] = CustomerDataForm(
+                self.request.POST,
+                is_duplicate=False,
+                is_edit_mode=False
+            )
         else:
-            context['test_form'] = TestDataForm()
-            context['customer_form'] = CustomerDataForm()
+            context['test_form'] = TestDataForm(
+                is_duplicate=False,
+                is_edit_mode=False
+            )
+            context['customer_form'] = CustomerDataForm(
+                is_duplicate=False,
+                is_edit_mode=False
+            )
+        # Добавляем флаги в контекст для шаблона
+        context['is_duplicate'] = False
+        context['is_edit_mode'] = False
         return context
 
     def form_valid(self, form):
@@ -248,14 +273,46 @@ class VehicleUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'vehicles/vehicle_form.html'
     success_url = reverse_lazy('vehicles:list')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # Передаем флаг is_duplicate в форму
+        kwargs['is_duplicate'] = 'is_duplicate' in self.request.GET
+        # При редактировании всегда устанавливаем is_edit_mode=True
+        kwargs['is_edit_mode'] = True
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        is_duplicate = 'is_duplicate' in self.request.GET
+        
         if self.request.POST:
-            context['test_form'] = TestDataForm(self.request.POST, instance=self.object.test_data)
-            context['customer_form'] = CustomerDataForm(self.request.POST, instance=self.object.customer_data)
+            context['test_form'] = TestDataForm(
+                self.request.POST, 
+                instance=self.object.test_data,
+                is_duplicate=is_duplicate,
+                is_edit_mode=True
+            )
+            context['customer_form'] = CustomerDataForm(
+                self.request.POST, 
+                instance=self.object.customer_data,
+                is_duplicate=is_duplicate,
+                is_edit_mode=True
+            )
         else:
-            context['test_form'] = TestDataForm(instance=self.object.test_data)
-            context['customer_form'] = CustomerDataForm(instance=self.object.customer_data)
+            context['test_form'] = TestDataForm(
+                instance=self.object.test_data,
+                is_duplicate=is_duplicate,
+                is_edit_mode=True
+            )
+            context['customer_form'] = CustomerDataForm(
+                instance=self.object.customer_data,
+                is_duplicate=is_duplicate,
+                is_edit_mode=True
+            )
+        
+        # Добавляем флаги в контекст для шаблона
+        context['is_duplicate'] = is_duplicate
+        context['is_edit_mode'] = True
         return context
 
     def form_valid(self, form):
@@ -329,51 +386,6 @@ class VehicleDeleteView(LoginRequiredMixin, DeleteView):
         # Для обычных запросов делаем редирект на список
         return self.delete(request, *args, **kwargs)
     
-class DuplicateVehicleView(LoginRequiredMixin, View):
-    def post(self, request, pk, *args, **kwargs):
-        return self.duplicate(request, pk)
-
-    def get(self, request, pk, *args, **kwargs):
-        return self.duplicate(request, pk)
-
-    def duplicate(self, request, pk):
-        # Получаем исходный автомобиль
-        source_vehicle = get_object_or_404(Vehicle, pk=pk)
-        
-        # Сохраняем связанные данные до копирования
-        source_test_data = TestData.objects.filter(vehicle=source_vehicle).first()
-        source_customer_data = CustomerData.objects.filter(vehicle=source_vehicle).first()
-        source_photos = VehiclePhoto.objects.filter(vehicle=source_vehicle)
-        
-        # Копируем автомобиль
-        source_vehicle.pk = None
-        source_vehicle.brand = f"{source_vehicle.brand} (копия)"
-        source_vehicle.save()
-        
-        # Копируем данные испытаний
-        if source_test_data:
-            source_test_data.pk = None
-            source_test_data.vehicle = source_vehicle
-            source_test_data.save()
-        
-        # Копируем данные заказчика
-        if source_customer_data:
-            source_customer_data.pk = None
-            source_customer_data.vehicle = source_vehicle
-            source_customer_data.save()
-        
-        # Копируем фотографии
-        for photo in source_photos:
-            # Создаем новый объект фотографии
-            new_photo = VehiclePhoto(
-                vehicle=source_vehicle,
-                image=photo.image  # Django автоматически скопирует файл
-            )
-            new_photo.save()
-        
-        messages.success(request, "Элемент успешно скопирован со всеми данными и фотографиями")
-        return redirect('vehicles:list')
-    
 
 # Функции для работы с оборудованием
 @login_required
@@ -412,69 +424,6 @@ def bulk_delete(request):
     
     return JsonResponse({'status': 'error'}, status=400)
 
-
-@login_required
-def bulk_duplicate(request):
-   if request.method == 'POST':
-       try:
-           data = json.loads(request.body)
-           ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
-       except json.JSONDecodeError:
-           return JsonResponse({'status': 'error', 'message': 'Некорректный JSON'}, status=400)
-
-       if not ids:
-           return JsonResponse({'status': 'error', 'message': 'Нет валидных ID'}, status=400)
-
-       duplicated_count = 0
-       for vehicle_id in ids:
-           try:
-               # Получаем исходный автомобиль
-               vehicle = Vehicle.objects.get(id=vehicle_id)
-               
-               # Сохраняем связанные данные
-               source_test_data = TestData.objects.filter(vehicle=vehicle).first()
-               source_customer_data = CustomerData.objects.filter(vehicle=vehicle).first()
-               source_photos = VehiclePhoto.objects.filter(vehicle=vehicle)
-               
-               # Копируем автомобиль
-               vehicle.pk = None
-               vehicle.brand = f"{vehicle.brand} (копия)"
-               vehicle.save()
-               
-               # Копируем данные испытаний
-               if source_test_data:
-                   source_test_data.pk = None
-                   source_test_data.vehicle = vehicle
-                   source_test_data.save()
-               
-               # Копируем данные заказчика
-               if source_customer_data:
-                   source_customer_data.pk = None
-                   source_customer_data.vehicle = vehicle
-                   source_customer_data.save()
-                   
-               # Копируем фотографии
-               for photo in source_photos:
-                   new_photo = VehiclePhoto(
-                       vehicle=vehicle,
-                       image=photo.image
-                   )
-                   new_photo.save()
-               
-               duplicated_count += 1
-               
-           except Vehicle.DoesNotExist:
-               continue
-
-       messages.success(request, f'Скопировано элементов: {duplicated_count}')
-       return JsonResponse({
-           'status': 'success', 
-           'duplicated_count': duplicated_count,
-           'message': f'Успешно скопировано элементов: {duplicated_count} со всеми данными и фотографиями'
-       })
-
-   return JsonResponse({'status': 'error', 'message': 'Метод не разрешен'}, status=400)
-
 @login_required
 def generate_vehicle_protocols(request, pk):
     vehicle = get_object_or_404(Vehicle, pk=pk)
@@ -491,3 +440,158 @@ def generate_vehicle_protocols(request, pk):
         messages.error(request, f'Ошибка при генерации протоколов: {str(e)}\n{error_details}')
     
     return redirect('vehicles:detail', pk=vehicle.pk)
+
+class DuplicateVehicleView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        return self.duplicate(request, pk)
+
+    def get(self, request, pk, *args, **kwargs):
+        return self.duplicate(request, pk)
+
+    def duplicate(self, request, pk):
+        # Получаем исходный автомобиль
+        source_vehicle = get_object_or_404(Vehicle, pk=pk)
+        
+        # Сохраняем связанные данные до копирования
+        source_test_data = TestData.objects.filter(vehicle=source_vehicle).first()
+        source_customer_data = CustomerData.objects.filter(vehicle=source_vehicle).first()
+        source_photos = VehiclePhoto.objects.filter(vehicle=source_vehicle)
+        
+        # Копируем автомобиль
+        source_vehicle.pk = None
+        source_vehicle.brand = f"{source_vehicle.brand}"
+        
+        # Очищаем VIN при копировании - используем None вместо пустой строки
+        source_vehicle.vin = None
+        
+        # Очищаем пробег
+        source_vehicle.mileage = None
+        
+        # Сохраняем с возможностью перехвата ошибки
+        try:
+            source_vehicle.save()
+        except IntegrityError as e:
+            messages.error(request, f"Ошибка при копировании автомобиля: {str(e)}")
+            return redirect('vehicles:list')
+        
+        # Копируем данные испытаний
+        if source_test_data:
+            source_test_data.pk = None
+            source_test_data.vehicle = source_vehicle
+            # Очищаем дату проведения испытаний
+            source_test_data.test_date = None
+            source_test_data.save()
+        
+        # Копируем данные заказчика
+        if source_customer_data:
+            source_customer_data.pk = None
+            source_customer_data.vehicle = source_vehicle
+            # Очищаем дату получения объекта
+            source_customer_data.receipt_date = None
+            source_customer_data.save()
+        
+        # Копируем фотографии
+        for photo in source_photos:
+            # Создаем новый объект фотографии
+            new_photo = VehiclePhoto(
+                vehicle=source_vehicle,
+                image=photo.image  # Django автоматически скопирует файл
+            )
+            new_photo.save()
+        
+        messages.success(request, "Элемент успешно скопирован со всеми данными и фотографиями. Пожалуйста, заполните VIN, пробег, даты испытаний и получения объекта.")
+        
+        # Перенаправляем на редактирование с флагом is_duplicate=True
+        return redirect(f"{reverse('vehicles:update', args=[source_vehicle.pk])}?is_duplicate=True")
+
+
+@login_required
+def bulk_duplicate(request):
+   if request.method == 'POST':
+       try:
+           data = json.loads(request.body)
+           ids = [int(i) for i in data.get('ids', []) if str(i).isdigit()]
+       except json.JSONDecodeError:
+           return JsonResponse({'status': 'error', 'message': 'Некорректный JSON'}, status=400)
+
+       if not ids:
+           return JsonResponse({'status': 'error', 'message': 'Нет валидных ID'}, status=400)
+
+       duplicated_count = 0
+       errors = []
+       
+       for vehicle_id in ids:
+           try:
+               # Получаем исходный автомобиль
+               vehicle = Vehicle.objects.get(id=vehicle_id)
+               
+               # Сохраняем связанные данные
+               source_test_data = TestData.objects.filter(vehicle=vehicle).first()
+               source_customer_data = CustomerData.objects.filter(vehicle=vehicle).first()
+               source_photos = VehiclePhoto.objects.filter(vehicle=vehicle)
+               
+               # Копируем автомобиль
+               vehicle.pk = None
+               vehicle.brand = f"{vehicle.brand}"
+               
+               # Очищаем VIN при копировании - используем None вместо пустой строки
+               vehicle.vin = None
+               
+               # Очищаем пробег
+               vehicle.mileage = None
+               
+               # Сохраняем с возможностью перехвата ошибки
+               try:
+                   vehicle.save()
+               except IntegrityError as e:
+                   errors.append(f"Ошибка при копировании ID {vehicle_id}: {str(e)}")
+                   continue
+               
+               # Копируем данные испытаний
+               if source_test_data:
+                   source_test_data.pk = None
+                   source_test_data.vehicle = vehicle
+                   source_test_data.save()
+               
+               # Копируем данные заказчика
+               if source_customer_data:
+                   source_customer_data.pk = None
+                   source_customer_data.vehicle = vehicle
+                   # Очищаем дату получения объекта
+                   source_customer_data.save()
+                   
+               # Копируем фотографии
+               for photo in source_photos:
+                   new_photo = VehiclePhoto(
+                       vehicle=vehicle,
+                       image=photo.image
+                   )
+                   new_photo.save()
+               
+               duplicated_count += 1
+               
+           except Vehicle.DoesNotExist:
+               errors.append(f"Автомобиль с ID {vehicle_id} не найден")
+               continue
+           except Exception as e:
+               errors.append(f"Ошибка при копировании ID {vehicle_id}: {str(e)}")
+               continue
+
+       # Формируем сообщение об успехе
+       success_message = f'Скопировано элементов: {duplicated_count}. Не забудьте заполнить VIN, пробег, даты испытаний и получения объекта для новых автомобилей.'
+       
+       # Добавляем информацию об ошибках, если они есть
+       if errors:
+           error_message = '\n'.join(errors)
+           messages.warning(request, f'Возникли ошибки при копировании некоторых элементов: {error_message}')
+       else:
+           messages.success(request, success_message)
+       
+       return JsonResponse({
+           'status': 'success' if duplicated_count > 0 else 'partial_success',
+           'duplicated_count': duplicated_count,
+           'errors': errors,
+           'message': f'Успешно скопировано элементов: {duplicated_count} со всеми данными и фотографиями. VIN-номера, пробег и даты очищены.'
+       })
+
+   return JsonResponse({'status': 'error', 'message': 'Метод не разрешен'}, status=400)

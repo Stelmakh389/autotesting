@@ -279,15 +279,14 @@ class ConditionsManager {
                     condition.operator = operatorSelect.value;
                 }
                 
-                if (valueInput && valueInput.value) {
-                    condition.value = this.fieldTypes[field].type === 'numeric' 
+                if (valueInput && valueInput.value) {  // Убеждаемся, что значение указано
+                    condition.value = this.fieldTypes[field].type === 'numeric'
                         ? parseFloat(valueInput.value)
                         : valueInput.value;
-                    conditions.push(condition);
+                    conditions.push(condition);  // Добавляем только полные условия
                 }
             }
         });
-
         this.conditionsInput.value = JSON.stringify(conditions);
     }
 }

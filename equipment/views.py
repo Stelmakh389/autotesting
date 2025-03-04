@@ -21,7 +21,7 @@ from django.db.models import F, IntegerField
 from django.db.models.functions import ExtractDay, Cast, Now
 from django.views import View
 from django.core.exceptions import FieldDoesNotExist
-
+from vehicles.models import Vehicle
 
 class DeleteMixin:
     def delete(self, request, *args, **kwargs):
@@ -56,45 +56,6 @@ class BaseEquipmentMixin:
             'delete_url': f'equipment:delete',
             'cancel_url': reverse_lazy(f'equipment:list'),
         })
-        return context
-
-class BaseEquipmentListView(LoginRequiredMixin, BaseEquipmentMixin, ListView):
-    template_name = 'equipment/equipment_list.html'
-    context_object_name = 'equipment_list'
-    paginate_by = 30
-    ordering = ['-id']
-
-    def get_queryset(self):
-        # Получаем базовый queryset
-        queryset = super().get_queryset()
-        
-        # Фильтруем по типу оборудования, если он определен
-        if hasattr(self, 'equipment_type_filter'):
-            queryset = queryset.filter(equipment_type=self.equipment_type_filter)
-        
-        # Применяем поиск, если есть
-        search_query = self.request.GET.get('search')
-        if search_query:
-            search_fields = [field.name for field in self.model._meta.fields 
-                           if isinstance(field, (models.CharField, models.TextField))]
-            
-            q_objects = Q()
-            for field in search_fields:
-                q_objects |= Q(**{f"{field}__icontains": search_query})
-            
-            queryset = queryset.filter(q_objects)
-        
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['app_name'] = 'equipment'  # Указываем название приложения
-        context['available_columns'] = {
-            field.name: getattr(field, 'verbose_name', field.name)
-            for field in Equipment._meta.get_fields()
-            if isinstance(field, (models.Field, models.ForeignKey, models.ManyToManyField))
-        }
-        context['selected_columns'] = self.request.session.get('equipment_columns', list(context['available_columns'].keys()))
         return context
     
 class BaseEquipmentCreateView(LoginRequiredMixin, SuccessMessageMixin, BaseEquipmentMixin, CreateView):
@@ -133,23 +94,26 @@ class EquipmentDetailView(LoginRequiredMixin, DetailView):
                         'verbose_name': field.verbose_name
                     })
                 
+                # ВАЖНО: Вычисляем days_between_poverk одинаково для API и для веб-страницы
+                days = instance.days_between_poverk
+                
                 # Получаем данные объекта
                 data = {
                     'equipment_type': instance.equipment_type,
                     'equipment_type_display': instance.get_equipment_type_display(),
-                    'days_between_poverk': instance.days_between_poverk,  # Добавляем дни до поверки
-                    'poverk_status': instance.poverk_status,  # Добавляем статус поверки
+                    'days_between_poverk': days,  # Используем вычисленное нами значение
+                    'poverk_status': instance.poverk_status,
                 }
                 
                 # Добавляем все остальные поля
                 for field in self.model._meta.fields:
                     value = getattr(instance, field.name)
                     if isinstance(value, (date, datetime)):
-                        value = value.strftime('%d.%m.%Y')
+                        value = value.strftime('%Y-%m-%d')
                     elif hasattr(value, '__str__'):
                         value = str(value)
                     data[field.name] = value if value is not None else ''
-
+                
                 return JsonResponse({
                     'status': 'success',
                     'data': data,
@@ -192,7 +156,7 @@ class EquipmentListView(LoginRequiredMixin, ListView):
         Получает и фильтрует список оборудования с учетом поискового запроса, сортировки и фильтрации по параметрам.
         """
         queryset = super().get_queryset()
-
+   
         # Аннотация количества дней до поверки (0 если уже просрочено)
         queryset = queryset.annotate(
             days_until_verification=ExtractDay(F('srok_poverk') - Now(), output_field=IntegerField())
@@ -268,6 +232,11 @@ class EquipmentListView(LoginRequiredMixin, ListView):
                 )
                 filters[field] = [v for v in values if v]
 
+        # Добавляем информацию о пагинации
+        page = self.request.GET.get('page', 1)
+        items_per_page = self.paginate_by
+        start_index = (int(page) - 1) * items_per_page + 1
+        
         # Обновляем контекст
         context.update({
             'app_name': 'equipment',
@@ -279,7 +248,8 @@ class EquipmentListView(LoginRequiredMixin, ListView):
             'form': EquipmentForm(),
             'current_filters': {
                 field: self.request.GET.get(field) for field in selected_columns
-            }
+            },
+            'start_index': start_index,  # Добавляем start_index в контекст
         })
         return context
     
@@ -296,16 +266,29 @@ class AjaxFormMixin:
 
     def form_invalid(self, form):
         if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            errors = {}
+            for field, error_list in form.errors.items():
+                # Пропускаем ошибку уникальности для специальных значений
+                if field == 'zav_nomer' and form.cleaned_data.get('zav_nomer') in ['', '-', 'б/н']:
+                    continue
+                errors[field] = [str(error) for error in error_list]
+            
+            # Если все ошибки были связаны со специальными значениями, считаем форму валидной
+            if not errors:
+                self.object = form.save()
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Элемент успешно сохранен'
+                })
+                
             return JsonResponse({
                 'status': 'error',
-                'errors': form.errors
+                'errors': errors
             })
         return super().form_invalid(form)
 
 class EquipmentCreateView(AjaxFormMixin, BaseEquipmentCreateView):
     form_class = EquipmentForm
-
-
 
 class EquipmentDeleteView(DeleteMixin, BaseEquipmentDeleteView):
     success_message = "Элемент успешно удален"
@@ -342,7 +325,7 @@ class EquipmentGroupListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['available_columns'] = {'name': 'Название','description': 'Описание','equipment_count': 'Количество оборудования'}
+        context['available_columns'] = {'name': 'Название','description': 'Описание','equipment_count': 'Количество оборудования', 'days_between_poverk': 'Дней до поверки',}
         return context
     
     def get_queryset(self):
@@ -409,13 +392,29 @@ class EquipmentGroupDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         group = self.get_object()
         
-        # Фильтруем оборудование по типам
         context.update({
             'si_equipment': group.equipment.filter(equipment_type='СИ'),
             'io_equipment': group.equipment.filter(equipment_type='ИО'),
             'vo_equipment': group.equipment.filter(equipment_type='ВО'),
         })
         
+        # Словарь verbose_name для полей Equipment
+        equipment_verbose_names = {field.name: field.verbose_name for field in Equipment._meta.fields}
+        # Словарь verbose_name для полей Vehicle
+        vehicle_verbose_names = {field.name: field.verbose_name for field in Vehicle._meta.fields}
+        # Объединяем словари
+        field_verbose_names = {**equipment_verbose_names, **vehicle_verbose_names}
+        
+        # Обновляем conditions
+        updated_conditions = []
+        for condition in group.conditions:
+            condition_dict = dict(condition)
+            field_name = condition_dict.get('field')
+            condition_dict['field_verbose'] = field_verbose_names.get(field_name, field_name)
+            updated_conditions.append(condition_dict)
+            print(f"Field: {field_name}, Verbose: {condition_dict['field_verbose']}")  # Отладка
+        
+        context['group'].conditions = updated_conditions
         return context
 
 # Функции для работы с оборудованием
@@ -439,6 +438,7 @@ def duplicate_equipment(request, pk, equipment_type):
     source_equipment = get_object_or_404(Equipment, pk=pk)
     source_equipment.pk = None
     source_equipment.name = f"{source_equipment.name} (копия)"
+    source_equipment.zav_nomer = None  # Очищаем заводской номер при копировании
     source_equipment.save()
 
     messages.success(request, "Элемент успешно скопирован")
@@ -550,16 +550,29 @@ def process_row(row, headers, fields, stats, is_csv=False):
                                value = None
            cleaned_data[field] = value
 
-   # Создание или обновление записи
-   if item_id and Equipment.objects.filter(id=item_id).exists():
-       equipment = Equipment.objects.get(id=item_id)
-       for field, value in cleaned_data.items():
-           setattr(equipment, field, value)
-       equipment.save()
-       stats['updated'] += 1
-   else:
-       Equipment.objects.create(**cleaned_data)
-       stats['created'] += 1
+   # Проверка заводского номера на допустимые дубликаты
+   zav_nomer = cleaned_data.get('zav_nomer')
+   if zav_nomer and zav_nomer not in ['', '-', 'б/н']:
+       # Проверяем существование оборудования с таким же заводским номером
+       existing = Equipment.objects.filter(zav_nomer=zav_nomer).exclude(id=item_id).exists()
+       if existing:
+           stats['skipped'] += 1
+           return
+
+   try:
+       # Создание или обновление записи
+       if item_id and Equipment.objects.filter(id=item_id).exists():
+           equipment = Equipment.objects.get(id=item_id)
+           for field, value in cleaned_data.items():
+               setattr(equipment, field, value)
+           equipment.save()
+           stats['updated'] += 1
+       else:
+           Equipment.objects.create(**cleaned_data)
+           stats['created'] += 1
+   except Exception as e:
+       print(f"Error processing row: {e}")
+       stats['skipped'] += 1
 
 @login_required 
 def export_equipment(request):
@@ -603,6 +616,7 @@ def bulk_duplicate_equipment(request):
                 equipment = Equipment.objects.get(id=equipment_id)
                 equipment.pk = None
                 equipment.name = f"{equipment.name} (копия)"
+                equipment.zav_nomer = None  # Очищаем заводской номер при копировании
                 equipment.save()
                 duplicated_count += 1
             except Equipment.DoesNotExist:
@@ -624,6 +638,7 @@ class DuplicateEquipmentView(LoginRequiredMixin, View):
         source_equipment = get_object_or_404(Equipment, pk=pk)
         source_equipment.pk = None
         source_equipment.name = f"{source_equipment.name} (копия)"
+        source_equipment.zav_nomer = None  # Очищаем заводской номер при копировании
         source_equipment.save()
 
         messages.success(request, "Элемент успешно скопирован")
@@ -645,3 +660,6 @@ class DuplicateGroupEquipmentView(LoginRequiredMixin, View):
         new_group.equipment.set(original_group.equipment.all())
         messages.success(request, "Группа оборудования успешно скопирована")
         return redirect('equipment:group-list')
+    
+
+    
