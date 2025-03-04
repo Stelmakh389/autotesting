@@ -22,3 +22,6 @@ services:
       - LIBREOFFICE_PATH=/usr/lib/libreoffice
     depends_on:
       - db
+
+volumes:
+  postgres_data:
